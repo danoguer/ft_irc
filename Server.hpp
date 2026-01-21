@@ -2,36 +2,40 @@
 #define SERVER_HPP
 
 #include <string>
-#include <stdexcept>
-#include <iostream>
-#include <vector>
 #include <map>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <poll.h>
-#include <errno.h>
+#include <set>
+#include "Network.hpp"
 
-struct ClientBuffer {
+struct Client {
     int fd;
-    std::string buffer;
+    std::string nickname;
+    bool authenticated;
+    std::set<std::string> channels;
+};
+
+struct Channel {
+    std::string name;
+    std::set<int> members;
+    std::string topic;
 };
 
 class Server {
 public:
-    Server(int port);
+    Server(int port, const std::string& password);
+    Server(const Server& other);
+    Server& operator=(const Server& other);
     ~Server();
+    
     void run();
-    void initserver();
-    void acceptNewClient();
-    void handleClientData(size_t index);
+    void onClientConnect(int fd);
+    void onClientDisconnect(int fd);
     void processCommand(int fd, const std::string& message);
+    void sendToChannel(const std::string& channelName, const std::string& message, int excludeFd);
 private:
-    int _server_fd;
-    int _port;
-    std::vector<struct pollfd> _fds;
-    std::map<int, ClientBuffer> _clients;
+    Network _network;
+    std::map<int, Client> _clients;
+    std::map<std::string, Channel> _channels;
+    std::string _password;
 };
 
 #endif
