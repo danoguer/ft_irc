@@ -1,11 +1,4 @@
 #include "Network.hpp"
-#include <stdexcept>
-#include <iostream>
-#include <netinet/in.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <cstring>
 
 Network::Network(int port) : _server_fd(-1), _port(port) {
     if (port <= 0 || port > 65535) {

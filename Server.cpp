@@ -1,6 +1,4 @@
 #include "Server.hpp"
-#include <iostream>
-#include <vector>
 
 Server::Server(int port, const std::string& password) : _network(port), _password(password) {
     if (password.empty()) {
@@ -25,7 +23,9 @@ Server::~Server() {}
 void Server::run(){
     _network.initNetwork();
     while (true) {
+        // Poll network events and handle them
         std::vector<NetworkEvent> events = _network.getEvents();
+        // Handle each event
         for (size_t i = 0; i < events.size(); ++i) {
             switch (events[i].type) {
                 case EVENT_NEW_CONNECTION:
@@ -55,13 +55,16 @@ void Server::onClientConnect(int fd) {
 }
 
 void Server::onClientDisconnect(int fd) {
+    // Clean up client data structure
     if (_clients.find(fd) != _clients.end()) {
+        // Remove client from all channels
         std::set<std::string>& client_channels = _clients[fd].channels;
         for (std::set<std::string>::iterator it = client_channels.begin(); it != client_channels.end(); ++it) {
             if (_channels.find(*it) != _channels.end()) {
                 _channels[*it].members.erase(fd);
             }
         }
+        // Remove client from clients map
         _clients.erase(fd);
     }
 }

@@ -1,12 +1,18 @@
 #ifndef NETWORK_HPP
 #define NETWORK_HPP
 
-#include <string>
-#include <vector>
-#include <map>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <poll.h>
+#include <string>         // std::string
+#include <vector>         // std::vector
+#include <map>            // std::map
+#include <stdexcept>      // std::runtime_error
+#include <iostream>       // std::cout, std::cerr
+#include <poll.h>         // poll(), pollfd, POLLIN
+#include <sys/socket.h>   // socket(), bind(), listen(), accept(), send(), recv(), setsockopt()
+#include <netinet/in.h>   // sockaddr_in, INADDR_ANY, htons(), SOMAXCONN
+#include <fcntl.h>        // fcntl(), F_SETFL, O_NONBLOCK
+#include <unistd.h>       // close()
+#include <cerrno>         // errno, EWOULDBLOCK, EAGAIN
+#include <cstring>        // memset()
 
 enum EventType {
     EVENT_NONE,

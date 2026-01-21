@@ -1,9 +1,12 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
-#include <string>
-#include <map>
-#include <set>
+#include <string>         // std::string
+#include <map>            // std::map
+#include <set>            // std::set
+#include <stdexcept>      // std::runtime_error
+#include <iostream>       // std::cout
+
 #include "Network.hpp"
 
 struct Client {
