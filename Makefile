@@ -4,13 +4,13 @@ BOT = ircbot
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-SRCS = main.cpp Server.cpp Network.cpp
+SRCS = main.cpp Server.cpp Network.cpp IrcParser.cpp commands/Privmsg.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 BOT_SRCS = bot_main.cpp Bot.cpp
 BOT_OBJS = $(BOT_SRCS:.cpp=.o)
 
-all: $(NAME) $(BOT)
+all: $(NAME) # $(BOT)
 
 $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)

@@ -1,5 +1,9 @@
 #include "Server.hpp"
 
+#include "IrcParser.hpp"
+
+#include "commands/Privmsg.hpp"
+
 Server::Server(int port, const std::string& password) : _network(port), _password(password) {
     if (password.empty()) {
         throw(std::runtime_error("Password cannot be empty"));
@@ -81,9 +85,51 @@ void Server::sendToChannel(const std::string& channelName, const std::string& me
     }
 }
 
+void Server::sendToClient(int fd, const std::string& message) {
+    _network.sendToClient(fd, message);
+}
+
+int Server::findClientFdByNickname(const std::string& nickname) const {
+    for (std::map<int, Client>::const_iterator it = _clients.begin(); it != _clients.end(); ++it) {
+        if (it->second.nickname == nickname) {
+            return it->first;
+        }
+    }
+    return -1;
+}
+
+std::string Server::getNickname(int fd) const {
+    std::map<int, Client>::const_iterator it = _clients.find(fd);
+    if (it == _clients.end()) {
+        return "";
+    }
+    return it->second.nickname;
+}
+
+void Server::executeCommand(int fd, const IrcCommand& cmd) {
+    if (cmd.command == "PRIVMSG") {
+        handlePrivmsg(*this, fd, cmd);
+        return;
+    }
+    // TODO: add more commands here
+}
+
 void Server::processCommand(int fd, const std::string& message) {
-    // Placeholder
-    (void)fd;
-    (void)message;
-    std::cout << "Processing command: " << message << std::endl;
+    IrcCommand cmd;
+    // parse command
+    if (!parseIrcCommandLine(message, cmd)) {
+        std::cerr << "Invalid IRC message from fd " << fd << ": '" << message << "'" << std::endl;
+        return;
+    }
+
+    // parser debug
+    std::cout << "Processing IRC command from fd " << fd
+              << " | command='" << cmd.command << "'";
+    for (size_t idx = 0; idx < cmd.arguments.size(); ++idx) {
+        std::cout << " arg[" << idx << "]='" << cmd.arguments[idx] << "'";
+    }
+    std::cout << std::endl;
+
+    // execute command
+    executeCommand(fd, cmd);
 }
