@@ -3,12 +3,13 @@
 #include "IrcParser.hpp"
 
 #include "commands/Privmsg.hpp"
+#include "commands/Pass.hpp"
+#include "commands/Nick.hpp"
+#include "commands/User.hpp"
 
 Server::Server(int port, const std::string& password) : _network(port), _password(password) {
-    if (password.empty()) {
-        throw(std::runtime_error("Password cannot be empty"));
-    }
-    if (password.length() < 8) {
+    // empty password is allowed per standard, but we don't want weak passwords
+    if (!password.empty() && password.length() < 8) {
         throw(std::runtime_error("Password must be at least 8 characters long"));
     }
 }
@@ -54,7 +55,10 @@ void Server::onClientConnect(int fd) {
     Client client;
     client.fd = fd;
     client.nickname = "";
-    client.authenticated = false;
+    client.username = "";
+    client.realname = "";
+    client.passAccepted = false;
+    client.registered = false;
     _clients[fd] = client;
 }
 
@@ -106,12 +110,55 @@ std::string Server::getNickname(int fd) const {
     return it->second.nickname;
 }
 
+Client* Server::getClient(int fd) {
+    std::map<int, Client>::iterator it = _clients.find(fd);
+    if (it == _clients.end()) {
+        return NULL;
+    }
+    return &(it->second);
+}
+
 void Server::executeCommand(int fd, const IrcCommand& cmd) {
+    // PASS, NICK, USER are allowed before registration
+    if (cmd.command == "PASS") {
+        handlePass(*this, fd, cmd);
+        return;
+    }
+    if (cmd.command == "NICK") {
+        handleNick(*this, fd, cmd);
+        return;
+    }
+    if (cmd.command == "USER") {
+        handleUser(*this, fd, cmd);
+        return;
+    }
+
+    // all other commands require registration
+    Client* client = getClient(fd);
+    if (!client || !client->registered) {
+        std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
+        sendToClient(fd, ":server 451 " + who + " :You have not registered");
+        return;
+    }
+
     if (cmd.command == "PRIVMSG") {
         handlePrivmsg(*this, fd, cmd);
         return;
     }
-    // TODO: add more commands here
+    
+    // handle unknown commands
+    // NOTE: to be completely standards compliant, this needs to go BEFORE the
+    // registration check (i.e. if we get an unknown command while unregistered
+    // we need to reply 421 not 451)
+    // but to do this we have to know the full list of commands we handle
+    // so, TODO fix this last
+    if (!cmd.command.empty()) {
+        Client* client = getClient(fd);
+        std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
+        sendToClient(fd, ":server 421 " + who + " " + cmd.command + " :Unknown command");
+        return;
+    }
+
 }
 
 void Server::processCommand(int fd, const std::string& message) {

@@ -14,7 +14,10 @@ struct IrcCommand;
 struct Client {
     int fd;
     std::string nickname;
-    bool authenticated;
+    std::string username;
+    std::string realname;
+    bool passAccepted;  // PASS command succeeded
+    bool registered;    // completed NICK + USER sequence
     std::set<std::string> channels;
 };
 
@@ -40,8 +43,13 @@ public:
 
 	int findClientFdByNickname(const std::string& nickname) const;
 	std::string getNickname(int fd) const;
+	Client* getClient(int fd);
+	bool checkPassword(const std::string& password) const;
+	void tryCompleteRegistration(int fd);
+
 private:
 	void executeCommand(int fd, const IrcCommand& cmd);
+	void sendWelcome(int fd);
 
     Network _network;
     std::map<int, Client> _clients;
