@@ -1,4 +1,4 @@
-#include "Join.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 #include <sstream>
@@ -53,7 +53,7 @@ void handleJoin(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_NEEDMOREPARAMS (461)
     if (cmd.arguments.empty()) {
-        server.sendToClient(fd, ":" + server.getServerName() + " 461 " + nick + " JOIN :Not enough parameters");
+        server.sendReply(fd, "461", nick, "JOIN :Not enough parameters");
         return;
     }
 
@@ -62,7 +62,7 @@ void handleJoin(Server& server, int fd, const IrcCommand& cmd) {
     // Validate channel name
     if (!isValidChannelName(channelName)) {
         // ERR_NOSUCHCHANNEL (403), used both for channel names that don't exist or are invalid
-        server.sendToClient(fd, ":" + server.getServerName() + " 403 " + nick + " " + channelName + " :No such channel");
+        server.sendReply(fd, "403", nick, channelName + " :No such channel");
         return;
     }
 
@@ -83,20 +83,20 @@ void handleJoin(Server& server, int fd, const IrcCommand& cmd) {
         // ERR_INVITEONLYCHAN (473)
         if (channel->inviteOnly) {
             if (channel->invited.find(fd) == channel->invited.end()) {
-                server.sendToClient(fd, ":" + server.getServerName() + " 473 " + nick + " " + channelName + " :Cannot join channel (+i)");
+                server.sendReply(fd, "473", nick, channelName + " :Cannot join channel (+i)");
                 return;
             }
         }
 
         // ERR_BADCHANNELKEY (475)
         if (!channel->key.empty() && suppliedKey != channel->key) {
-            server.sendToClient(fd, ":" + server.getServerName() + " 475 " + nick + " " + channelName + " :Cannot join channel (+k)");
+            server.sendReply(fd, "475", nick, channelName + " :Cannot join channel (+k)");
             return;
         }
 
         // ERR_CHANNELISFULL (471)
         if (channel->userLimit > 0 && (int)channel->members.size() >= channel->userLimit) {
-            server.sendToClient(fd, ":" + server.getServerName() + " 471 " + nick + " " + channelName + " :Cannot join channel (+l)");
+            server.sendReply(fd, "471", nick, channelName + " :Cannot join channel (+l)");
             return;
         }
 
@@ -123,10 +123,10 @@ void handleJoin(Server& server, int fd, const IrcCommand& cmd) {
     // Send topic (or RPL_NOTOPIC) to the joining user
     if (!channel->topic.empty()) {
         // RPL_TOPIC (332)
-        server.sendToClient(fd, ":" + server.getServerName() + " 332 " + nick + " " + channelName + " :" + channel->topic);
+        server.sendReply(fd, "332", nick, channelName + " :" + channel->topic);
     } else {
         // RPL_NOTOPIC (331)
-        server.sendToClient(fd, ":" + server.getServerName() + " 331 " + nick + " " + channelName + " :No topic is set");
+        server.sendReply(fd, "331", nick, channelName + " :No topic is set");
     }
 
     // When joining a channel, we send these two commands so the IRC client can populate 
@@ -134,6 +134,6 @@ void handleJoin(Server& server, int fd, const IrcCommand& cmd) {
     // RPL_NAMREPLY (353) + RPL_ENDOFNAMES (366)
     std::string names = buildNamesList(server, *channel);
     // '=' means public channel
-    server.sendToClient(fd, ":" + server.getServerName() + " 353 " + nick + " = " + channelName + " :" + names);
-    server.sendToClient(fd, ":" + server.getServerName() + " 366 " + nick + " " + channelName + " :End of /NAMES list");
+    server.sendReply(fd, "353", nick, "= " + channelName + " :" + names);
+    server.sendReply(fd, "366", nick, channelName + " :End of /NAMES list");
 }

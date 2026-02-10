@@ -1,4 +1,4 @@
-#include "Kick.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 void handleKick(Server& server, int fd, const IrcCommand& cmd) {
@@ -6,11 +6,10 @@ void handleKick(Server& server, int fd, const IrcCommand& cmd) {
     if (!client)
         return;
     const std::string& nick = client->nickname;
-    const std::string& srv = server.getServerName();
 
     // ERR_NEEDMOREPARAMS (461)
     if (cmd.arguments.size() < 2) {
-        server.sendToClient(fd, ":" + srv + " 461 " + nick + " KICK :Not enough parameters");
+        server.sendReply(fd, "461", nick, "KICK :Not enough parameters");
         return;
     }
 
@@ -26,26 +25,26 @@ void handleKick(Server& server, int fd, const IrcCommand& cmd) {
     // ERR_NOSUCHCHANNEL (403)
     Channel* channel = server.getChannel(channelName);
     if (!channel) {
-        server.sendToClient(fd, ":" + srv + " 403 " + nick + " " + channelName + " :No such channel");
+        server.sendReply(fd, "403", nick, channelName + " :No such channel");
         return;
     }
 
     // ERR_NOTONCHANNEL (442), kicker must be on the channel
     if (channel->members.find(fd) == channel->members.end()) {
-        server.sendToClient(fd, ":" + srv + " 442 " + nick + " " + channelName + " :You're not on that channel");
+        server.sendReply(fd, "442", nick, channelName + " :You're not on that channel");
         return;
     }
 
     // ERR_CHANOPRIVSNEEDED (482), only operators can kick
     if (channel->operators.find(fd) == channel->operators.end()) {
-        server.sendToClient(fd, ":" + srv + " 482 " + nick + " " + channelName + " :You're not channel operator");
+        server.sendReply(fd, "482", nick, channelName + " :You're not channel operator");
         return;
     }
 
     // ERR_USERNOTINCHANNEL (441), target must be on the channel
     int targetFd = server.findClientFdByNickname(targetNick);
     if (targetFd < 0 || channel->members.find(targetFd) == channel->members.end()) {
-        server.sendToClient(fd, ":" + srv + " 441 " + nick + " " + targetNick + " " + channelName + " :They aren't on that channel");
+        server.sendReply(fd, "441", nick, targetNick + " " + channelName + " :They aren't on that channel");
         return;
     }
 

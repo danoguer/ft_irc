@@ -1,4 +1,4 @@
-#include "Pass.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 void handlePass(Server& server, int fd, const IrcCommand& cmd) {
@@ -9,13 +9,13 @@ void handlePass(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_ALREADYREGISTRED (462), cannot use PASS after registration
     if (client->registered) {
-        server.sendToClient(fd, ":" + server.getServerName() + " 462 " + client->nickname + " :You may not reregister");
+        server.sendReply(fd, "462", client->nickname, ":You may not reregister");
         return;
     }
 
     // ERR_NEEDMOREPARAMS (461), no password provided
     if (cmd.arguments.empty()) {
-        server.sendToClient(fd, ":" + server.getServerName() + " 461 * PASS :Not enough parameters");
+        server.sendReply(fd, "461", "*", "PASS :Not enough parameters");
         return;
     }
 
@@ -24,6 +24,6 @@ void handlePass(Server& server, int fd, const IrcCommand& cmd) {
         client->passAccepted = true;
     } else {
         // ERR_PASSWDMISMATCH (464)
-        server.sendToClient(fd, ":" + server.getServerName() + " 464 * :Password incorrect");
+        server.sendReply(fd, "464", "*", ":Password incorrect");
     }
 }

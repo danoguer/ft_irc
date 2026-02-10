@@ -1,4 +1,4 @@
-#include "User.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 void handleUser(Server& server, int fd, const IrcCommand& cmd) {
@@ -9,7 +9,7 @@ void handleUser(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_ALREADYREGISTRED (462)
     if (client->registered) {
-        server.sendToClient(fd, ":" + server.getServerName() + " 462 " + client->nickname + " :You may only register once");
+        server.sendReply(fd, "462", client->nickname, ":You may only register once");
         return;
     }
 
@@ -17,7 +17,7 @@ void handleUser(Server& server, int fd, const IrcCommand& cmd) {
     // USER <username> <mode> <unused> <realname>
     if (cmd.arguments.size() < 4) {
         std::string who = client->nickname.empty() ? "*" : client->nickname;
-        server.sendToClient(fd, ":" + server.getServerName() + " 461 " + who + " USER :Not enough parameters");
+        server.sendReply(fd, "461", who, "USER :Not enough parameters");
         return;
     }
 

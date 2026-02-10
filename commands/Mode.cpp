@@ -1,4 +1,4 @@
-#include "Mode.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 #include <sstream>
@@ -40,11 +40,10 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
     if (!client)
         return;
     const std::string& nick = client->nickname;
-    const std::string& srv = server.getServerName();
 
     // ERR_NEEDMOREPARAMS (461)
     if (cmd.arguments.empty()) {
-        server.sendToClient(fd, ":" + srv + " 461 " + nick + " MODE :Not enough parameters");
+        server.sendReply(fd, "461", nick, "MODE :Not enough parameters");
         return;
     }
 
@@ -56,7 +55,7 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
         // some clients send user mode queries for every user (MODE <nick>)
         // we don't want to implement those but also don't want to crash,
         // so we accept them and reply with RPL_UMODEIS (221) set to an empty mode
-        server.sendToClient(fd, ":" + srv + " 221 " + nick + " +");
+        server.sendReply(fd, "221", nick, "+");
         return;
     }
 
@@ -64,21 +63,21 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
     Channel* channel = server.getChannel(target);
     if (!channel) {
         // ERR_NOSUCHCHANNEL (403)
-        server.sendToClient(fd, ":" + srv + " 403 " + nick + " " + target + " :No such channel");
+        server.sendReply(fd, "403", nick, target + " :No such channel");
         return;
     }
 
     // Query mode (if no mode string given, we just return current modes)
     if (cmd.arguments.size() < 2) {
         // RPL_CHANNELMODEIS (324)
-        server.sendToClient(fd, ":" + srv + " 324 " + nick + " " + target + " " + currentModeString(*channel));
+        server.sendReply(fd, "324", nick, target + " " + currentModeString(*channel));
         return;
     }
 
     // Setting modes, require operator privilege
     if (channel->operators.find(fd) == channel->operators.end()) {
         // ERR_CHANOPRIVSNEEDED (482)
-        server.sendToClient(fd, ":" + srv + " 482 " + nick + " " + target + " :You're not channel operator");
+        server.sendReply(fd, "482", nick, target + " :You're not channel operator");
         return;
     }
 
@@ -130,7 +129,7 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
                 if (adding) {
                     // +k requires a key parameter
                     if (paramIdx >= cmd.arguments.size()) {
-                        server.sendToClient(fd, ":" + srv + " 461 " + nick + " MODE :Not enough parameters");
+                        server.sendReply(fd, "461", nick, "MODE :Not enough parameters");
                         return;
                     }
                     channel->key = cmd.arguments[paramIdx];
@@ -144,7 +143,7 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
                 } else {
                     // removing password requires the current key as parameter (RFC 2812)
                     if (paramIdx >= cmd.arguments.size()) {
-                        server.sendToClient(fd, ":" + srv + " 461 " + nick + " MODE :Not enough parameters");
+                        server.sendReply(fd, "461", nick, "MODE :Not enough parameters");
                         return;
                     }
                     channel->key = "";
@@ -161,21 +160,21 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
             case 'o': {
                 // +o/-o requires a nickname parameter
                 if (paramIdx >= cmd.arguments.size()) {
-                    server.sendToClient(fd, ":" + srv + " 461 " + nick + " MODE :Not enough parameters");
+                    server.sendReply(fd, "461", nick, "MODE :Not enough parameters");
                     return;
                 }
                 const std::string& targetNick = cmd.arguments[paramIdx];
                 int targetFd = server.findClientFdByNickname(targetNick);
                 if (targetFd < 0) {
                     // ERR_NOSUCHNICK (401)
-                    server.sendToClient(fd, ":" + srv + " 401 " + nick + " " + targetNick + " :No such nick/channel");
+                    server.sendReply(fd, "401", nick, targetNick + " :No such nick/channel");
                     ++paramIdx;
                     break;
                 }
                 // Target must be in the channel
                 if (channel->members.find(targetFd) == channel->members.end()) {
                     // ERR_USERNOTINCHANNEL (441)
-                    server.sendToClient(fd, ":" + srv + " 441 " + nick + " " + targetNick + " " + target + " :They aren't on that channel");
+                    server.sendReply(fd, "441", nick, targetNick + " " + target + " :They aren't on that channel");
                     ++paramIdx;
                     break;
                 }
@@ -197,7 +196,7 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
                 if (adding) {
                     // +l requires a limit parameter
                     if (paramIdx >= cmd.arguments.size()) {
-                        server.sendToClient(fd, ":" + srv + " 461 " + nick + " MODE :Not enough parameters");
+                        server.sendReply(fd, "461", nick, "MODE :Not enough parameters");
                         return;
                     }
                     int limit = 0;
@@ -229,7 +228,7 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
             default: {
                 // ERR_UNKNOWNMODE (472)
                 std::string modeChar(1, c);
-                server.sendToClient(fd, ":" + srv + " 472 " + nick + " " + modeChar + " :is unknown mode char to me");
+                server.sendReply(fd, "472", nick, modeChar + " :is unknown mode char to me");
                 break;
             }
         }

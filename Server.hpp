@@ -10,6 +10,7 @@
 #include <ctime>          // time_t, time(), ctime()
 
 struct IrcCommand;
+class Server;
 
 #include "Network.hpp"
 
@@ -37,6 +38,14 @@ struct Channel {
     Channel() : userLimit(0), inviteOnly(false), topicRestricted(false) {}
 };
 
+// Handler function signature: void handler(Server&, int fd, const IrcCommand&)
+typedef void (*CommandHandler)(Server&, int, const IrcCommand&);
+
+struct CommandEntry {
+    CommandHandler handler;
+    bool requiresRegistration;
+};
+
 class Server {
 public:
     Server(int port, const std::string& password);
@@ -49,6 +58,7 @@ public:
     void onClientDisconnect(int fd);
     void processCommand(int fd, const std::string& message);
     void sendToClient(int fd, const std::string& message);
+    void sendReply(int fd, const std::string& code, const std::string& nick, const std::string& rest);
     void sendToChannel(const std::string& channelName, const std::string& message, int excludeFd);
 
 	int findClientFdByNickname(const std::string& nickname) const;
@@ -61,8 +71,10 @@ public:
 	bool checkPassword(const std::string& password) const;
 	void tryCompleteRegistration(int fd);
 	void sendMotd(int fd);
-	bool isKnownCommand(const std::string& command) const;
-	bool requiresRegistration(const std::string& command) const;
+
+	// Command dispatch table management
+	void addCommand(const std::string& name, const CommandEntry& entry);
+	const CommandEntry* findCommand(const std::string& name) const;
 
 private:
 	void executeCommand(int fd, const IrcCommand& cmd);
@@ -77,12 +89,8 @@ private:
     time_t _createdAt;
     std::vector<std::string> _motdLines;
 
-    // Commands allowed before registration (during handshake)
-    // All other known commands require registration first
-    static const std::string _preRegCommands[];     // PASS, NICK, USER
-    static const std::string _postRegCommands[];    // PRIVMSG, JOIN, PART, MODE, INVITE, KICK, TOPIC, MOTD
-    static const size_t _preRegCount;
-    static const size_t _postRegCount;
+    // Command dispatch table: maps command name → handler + registration requirement
+    std::map<std::string, CommandEntry> _commandMap;
 };
 
 #endif

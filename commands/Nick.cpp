@@ -1,4 +1,4 @@
-#include "Nick.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 // check if nickname is valid per RFC 2812
@@ -52,7 +52,7 @@ void handleNick(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_NONICKNAMEGIVEN (431)
     if (cmd.arguments.empty()) {
-        server.sendToClient(fd, ":" + server.getServerName() + " 431 " + who + " :No nickname given");
+        server.sendReply(fd, "431", who, ":No nickname given");
         return;
     }
 
@@ -60,14 +60,14 @@ void handleNick(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_ERRONEUSNICKNAME (432)
     if (!isValidNickname(newNick)) {
-        server.sendToClient(fd, ":" + server.getServerName() + " 432 " + who + " " + newNick + " :Erroneous nickname");
+        server.sendReply(fd, "432", who, newNick + " :Erroneous nickname");
         return;
     }
 
     // ERR_NICKNAMEINUSE (433)
     int existingFd = server.findClientFdByNickname(newNick);
     if (existingFd != -1 && existingFd != fd) {
-        server.sendToClient(fd, ":" + server.getServerName() + " 433 " + who + " " + newNick + " :Nickname is already in use");
+        server.sendReply(fd, "433", who, newNick + " :Nickname is already in use");
         return;
     }
 

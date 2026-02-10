@@ -1,4 +1,4 @@
-#include "Part.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 void handlePart(Server& server, int fd, const IrcCommand& cmd) {
@@ -6,11 +6,10 @@ void handlePart(Server& server, int fd, const IrcCommand& cmd) {
     if (!client)
         return;
     const std::string& nick = client->nickname;
-    const std::string& srv = server.getServerName();
 
     // ERR_NEEDMOREPARAMS (461)
     if (cmd.arguments.empty()) {
-        server.sendToClient(fd, ":" + srv + " 461 " + nick + " PART :Not enough parameters");
+        server.sendReply(fd, "461", nick, "PART :Not enough parameters");
         return;
     }
 
@@ -25,13 +24,13 @@ void handlePart(Server& server, int fd, const IrcCommand& cmd) {
     // ERR_NOSUCHCHANNEL (403)
     Channel* channel = server.getChannel(channelName);
     if (!channel) {
-        server.sendToClient(fd, ":" + srv + " 403 " + nick + " " + channelName + " :No such channel");
+        server.sendReply(fd, "403", nick, channelName + " :No such channel");
         return;
     }
 
     // ERR_NOTONCHANNEL (442)
     if (channel->members.find(fd) == channel->members.end()) {
-        server.sendToClient(fd, ":" + srv + " 442 " + nick + " " + channelName + " :You're not on that channel");
+        server.sendReply(fd, "442", nick, channelName + " :You're not on that channel");
         return;
     }
 

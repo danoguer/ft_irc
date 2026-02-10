@@ -51,15 +51,15 @@ void Server::sendWelcome(int fd) {
     }
 
     // RPL_WELCOME (001)
-    sendToClient(fd, ":" + _serverName + " 001 " + nick + " :Welcome to the ft_irc network " + nick + "!" + user + "@localhost");
+    sendReply(fd, "001", nick, ":Welcome to the ft_irc network " + nick + "!" + user + "@localhost");
     // RPL_YOURHOST (002)
-    sendToClient(fd, ":" + _serverName + " 002 " + nick + " :Your host is " + _serverName + ", running version 1.0");
+    sendReply(fd, "002", nick, ":Your host is " + _serverName + ", running version 1.0");
     // RPL_CREATED (003)
-    sendToClient(fd, ":" + _serverName + " 003 " + nick + " :This server was created " + createdStr);
+    sendReply(fd, "003", nick, ":This server was created " + createdStr);
     // RPL_MYINFO (004): <servername> <version> <user modes> <channel modes>
     // user modes: we don't implement any
     // channel modes: i t k o l
-    sendToClient(fd, ":" + _serverName + " 004 " + nick + " " + _serverName + " 1.0 o itkol");
+    sendReply(fd, "004", nick, _serverName + " 1.0 o itkol");
     // MOTD (375/372/376 or 422 if missing)
     sendMotd(fd);
 }

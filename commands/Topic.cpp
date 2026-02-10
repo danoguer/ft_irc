@@ -1,4 +1,4 @@
-#include "Topic.hpp"
+#include "Commands.hpp"
 #include "../Server.hpp"
 
 void handleTopic(Server& server, int fd, const IrcCommand& cmd) {
@@ -6,11 +6,10 @@ void handleTopic(Server& server, int fd, const IrcCommand& cmd) {
     if (!client)
         return;
     const std::string& nick = client->nickname;
-    const std::string& srv = server.getServerName();
 
     // ERR_NEEDMOREPARAMS (461)
     if (cmd.arguments.empty()) {
-        server.sendToClient(fd, ":" + srv + " 461 " + nick + " TOPIC :Not enough parameters");
+        server.sendReply(fd, "461", nick, "TOPIC :Not enough parameters");
         return;
     }
 
@@ -19,13 +18,13 @@ void handleTopic(Server& server, int fd, const IrcCommand& cmd) {
     // ERR_NOSUCHCHANNEL (403)
     Channel* channel = server.getChannel(channelName);
     if (!channel) {
-        server.sendToClient(fd, ":" + srv + " 403 " + nick + " " + channelName + " :No such channel");
+        server.sendReply(fd, "403", nick, channelName + " :No such channel");
         return;
     }
 
     // ERR_NOTONCHANNEL (442) — must be on the channel
     if (channel->members.find(fd) == channel->members.end()) {
-        server.sendToClient(fd, ":" + srv + " 442 " + nick + " " + channelName + " :You're not on that channel");
+        server.sendReply(fd, "442", nick, channelName + " :You're not on that channel");
         return;
     }
 
@@ -33,10 +32,10 @@ void handleTopic(Server& server, int fd, const IrcCommand& cmd) {
     if (cmd.arguments.size() < 2) {
         if (channel->topic.empty()) {
             // RPL_NOTOPIC (331)
-            server.sendToClient(fd, ":" + srv + " 331 " + nick + " " + channelName + " :No topic is set");
+            server.sendReply(fd, "331", nick, channelName + " :No topic is set");
         } else {
             // RPL_TOPIC (332)
-            server.sendToClient(fd, ":" + srv + " 332 " + nick + " " + channelName + " :" + channel->topic);
+            server.sendReply(fd, "332", nick, channelName + " :" + channel->topic);
         }
         return;
     }
@@ -45,7 +44,7 @@ void handleTopic(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_CHANOPRIVSNEEDED (482), if +t, only operators can change topic
     if (channel->topicRestricted && channel->operators.find(fd) == channel->operators.end()) {
-        server.sendToClient(fd, ":" + srv + " 482 " + nick + " " + channelName + " :You're not channel operator");
+        server.sendReply(fd, "482", nick, channelName + " :You're not channel operator");
         return;
     }
 

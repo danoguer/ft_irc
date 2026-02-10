@@ -1,46 +1,8 @@
 #include "Server.hpp"
-
+#include "commands/CommandHandler.hpp"
 #include "IrcParser.hpp"
+
 #include <fstream>
-
-#include "commands/Privmsg.hpp"
-#include "commands/Pass.hpp"
-#include "commands/Nick.hpp"
-#include "commands/User.hpp"
-#include "commands/Join.hpp"
-#include "commands/Part.hpp"
-#include "commands/Mode.hpp"
-#include "commands/Invite.hpp"
-#include "commands/Kick.hpp"
-#include "commands/Topic.hpp"
-
-// Pre-registration commands (allowed before NICK+USER handshake completes)
-const std::string Server::_preRegCommands[] = { "PASS", "NICK", "USER" };
-const size_t Server::_preRegCount = sizeof(Server::_preRegCommands) / sizeof(Server::_preRegCommands[0]);
-
-// Post-registration commands (require completed registration)
-const std::string Server::_postRegCommands[] = { "PRIVMSG", "JOIN", "PART", "MODE", "INVITE", "KICK", "TOPIC", "MOTD" };
-const size_t Server::_postRegCount = sizeof(Server::_postRegCommands) / sizeof(Server::_postRegCommands[0]);
-
-bool Server::isKnownCommand(const std::string& command) const {
-    for (size_t i = 0; i < _preRegCount; ++i) {
-        if (_preRegCommands[i] == command)
-            return true;
-    }
-    for (size_t i = 0; i < _postRegCount; ++i) {
-        if (_postRegCommands[i] == command)
-            return true;
-    }
-    return false;
-}
-
-bool Server::requiresRegistration(const std::string& command) const {
-    for (size_t i = 0; i < _postRegCount; ++i) {
-        if (_postRegCommands[i] == command)
-            return true;
-    }
-    return false;
-}
 
 Server::Server(int port, const std::string& password)
     : _network(port), _password(password), _serverName("ircserv"), _createdAt(std::time(NULL)) {
@@ -48,6 +10,8 @@ Server::Server(int port, const std::string& password)
     if (!password.empty() && password.length() < 8) {
         throw(std::runtime_error("Password must be at least 8 characters long"));
     }
+    // Build the command dispatch table
+    initCommandMap(*this);
     // try to load MOTD from several paths (relative to cwd, then /etc)
     // missing MOTD is not an error, clients will just get ERR_NOMOTD (422)
     if (!loadMotd("motd.txt")) {
@@ -134,6 +98,10 @@ void Server::sendToClient(int fd, const std::string& message) {
     _network.sendToClient(fd, message);
 }
 
+void Server::sendReply(int fd, const std::string& code, const std::string& nick, const std::string& rest) {
+    _network.sendToClient(fd, ":" + _serverName + " " + code + " " + nick + " " + rest);
+}
+
 int Server::findClientFdByNickname(const std::string& nickname) const {
     for (std::map<int, Client>::const_iterator it = _clients.begin(); it != _clients.end(); ++it) {
         if (it->second.nickname == nickname) {
@@ -206,68 +174,55 @@ void Server::sendMotd(int fd) {
 
     if (_motdLines.empty()) {
         // ERR_NOMOTD (422)
-        sendToClient(fd, ":" + _serverName + " 422 " + nick + " :MOTD File is missing");
+        sendReply(fd, "422", nick, ":MOTD File is missing");
         return;
     }
 
     // RPL_MOTDSTART (375)
-    sendToClient(fd, ":" + _serverName + " 375 " + nick + " :- " + _serverName + " Message of the day - ");
+    sendReply(fd, "375", nick, ":- " + _serverName + " Message of the day - ");
     // RPL_MOTD (372), one per line
     for (size_t i = 0; i < _motdLines.size(); ++i) {
-        sendToClient(fd, ":" + _serverName + " 372 " + nick + " :- " + _motdLines[i]);
+        sendReply(fd, "372", nick, ":- " + _motdLines[i]);
     }
     // RPL_ENDOFMOTD (376)
-    sendToClient(fd, ":" + _serverName + " 376 " + nick + " :End of MOTD command");
+    sendReply(fd, "376", nick, ":End of MOTD command");
+}
+
+void Server::addCommand(const std::string& name, const CommandEntry& entry) {
+    _commandMap[name] = entry;
+}
+
+const CommandEntry* Server::findCommand(const std::string& name) const {
+    std::map<std::string, CommandEntry>::const_iterator it = _commandMap.find(name);
+    if (it == _commandMap.end()) {
+        return NULL;
+    }
+    return &(it->second);
 }
 
 void Server::executeCommand(int fd, const IrcCommand& cmd) {
-    // Check for unknown commands
-    if (!isKnownCommand(cmd.command)) {
+    // Look up command in dispatch table
+    const CommandEntry* entry = findCommand(cmd.command);
+    if (!entry) {
+        // ERR_UNKNOWNCOMMAND (421)
         Client* client = getClient(fd);
         std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
-        sendToClient(fd, ":" + _serverName + " 421 " + who + " " + cmd.command + " :Unknown command");
+        sendReply(fd, "421", who, cmd.command + " :Unknown command");
         return;
     }
 
-    // PASS, NICK, USER are allowed before registration
-    if (cmd.command == "PASS") {
-        handlePass(*this, fd, cmd);
-        return;
-    }
-    if (cmd.command == "NICK") {
-        handleNick(*this, fd, cmd);
-        return;
-    }
-    if (cmd.command == "USER") {
-        handleUser(*this, fd, cmd);
-        return;
+    // Check registration requirement
+    if (entry->requiresRegistration) {
+        Client* client = getClient(fd);
+        if (!client || !client->registered) {
+            std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
+            sendReply(fd, "451", who, ":You have not registered");
+            return;
+        }
     }
 
-    // all other commands require registration
-    Client* client = getClient(fd);
-    if (!client || !client->registered) {
-        std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
-        sendToClient(fd, ":" + _serverName + " 451 " + who + " :You have not registered");
-        return;
-    }
-
-    if (cmd.command == "PRIVMSG") {
-        handlePrivmsg(*this, fd, cmd);
-    } else if (cmd.command == "JOIN") {
-        handleJoin(*this, fd, cmd);
-    } else if (cmd.command == "PART") {
-        handlePart(*this, fd, cmd);
-    } else if (cmd.command == "MODE") {
-        handleMode(*this, fd, cmd);
-    } else if (cmd.command == "INVITE") {
-        handleInvite(*this, fd, cmd);
-    } else if (cmd.command == "KICK") {
-        handleKick(*this, fd, cmd);
-    } else if (cmd.command == "TOPIC") {
-        handleTopic(*this, fd, cmd);
-    } else if (cmd.command == "MOTD") {
-        sendMotd(fd);
-    }
+    // Dispatch to handler
+    entry->handler(*this, fd, cmd);
 }
 
 void Server::processCommand(int fd, const std::string& message) {
