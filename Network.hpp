@@ -41,7 +41,7 @@ public:
 
 private:
     int acceptNewClient();
-    int receiveFromClient(int fd, std::string& message);
+    int receiveFromClient(int fd, std::vector<std::string>& messages);
 
     int _server_fd;
     int _port;

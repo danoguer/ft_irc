@@ -90,30 +90,40 @@ int Network::acceptNewClient() {
     return new_fd;
 }
 
-int Network::receiveFromClient(int fd, std::string& message) {
-    char buffer[1024];
-    // recv reads data from the socket. (fd, buffer, size, flags)
+int Network::receiveFromClient(int fd, std::vector<std::string>& messages) {
+    char buffer[1024];   
+    // recv reads data from the socket
     ssize_t bytes_read = recv(fd, buffer, sizeof(buffer) - 1, 0);
     if (bytes_read < 0) {
-        // Ewouldbock and EAGAIN are not errors in non-blocking mode
-        if (errno != EWOULDBLOCK && errno != EAGAIN) {
-            throw(std::runtime_error("Receive failed"));
+        // EWOULDBLOCK/EAGAIN/EINTR are not fatal in non-blocking mode
+        if (errno == EWOULDBLOCK || errno == EAGAIN || errno == EINTR) {
+            return 0;
         }
-        return 0; // No data available
+        // Treat common connection errors as disconnects
+        if (errno == ECONNRESET || errno == ENOTCONN || errno == EPIPE) {
+            return -1;
+        }
+        throw(std::runtime_error("Receive failed"));
     } else if (bytes_read == 0) {
         return -1; // Client disconnected
     }
     buffer[bytes_read] = '\0';
     _client_buffer[fd] += std::string(buffer, bytes_read);
-    // Extract and return complete message if available
+    // Extract multiple messages (handle \r\n or bare \n)
     std::string& clientBuf = _client_buffer[fd];
-    size_t pos = clientBuf.find("\r\n");
-    if (pos != std::string::npos) {
-        message = clientBuf.substr(0, pos);
-        clientBuf.erase(0, pos + 2);
-        return 1; // Message received
+    size_t pos = 0;
+    bool found_message = false;
+    // While we can find a '\n', keep extracting messages
+    while ((pos = clientBuf.find('\n')) != std::string::npos) {
+        std::string msg = clientBuf.substr(0, pos);
+        if (!msg.empty() && msg[msg.size() - 1] == '\r') {
+            msg.erase(msg.size() - 1);
+        }
+        messages.push_back(msg);       // Add to the vector
+        clientBuf.erase(0, pos + 1);   // Remove up to and including '\n'
+        found_message = true;
     }
-    return 0; // No complete message yet
+    return found_message ? 1 : 0;
 }
 
 void Network::disconnectClient(int fd) {
@@ -150,32 +160,49 @@ std::vector<NetworkEvent> Network::getEvents() {
         throw(std::runtime_error("Poll failed"));
     }
     for (size_t i = 0; i < _fds.size(); ++i) {
+        if (_fds[i].revents & (POLLHUP | POLLERR | POLLNVAL)) {
+            if (_fds[i].fd != _server_fd) {
+                NetworkEvent event;
+                event.type = EVENT_CLIENT_DISCONNECT;
+                event.client_fd = _fds[i].fd;
+                events.push_back(event);
+            }
+            continue;
+        }
         if (_fds[i].revents & POLLIN) {
-            NetworkEvent event;
             if (_fds[i].fd == _server_fd) {
-                // New connection event
+                // New Connection Handling
                 int new_fd = acceptNewClient();
                 if (new_fd > 0) {
+                    NetworkEvent event;
                     event.type = EVENT_NEW_CONNECTION;
                     event.client_fd = new_fd;
                     events.push_back(event);
                 }
             } else {
-                // Client data event
-                int client_fd = _fds[i].fd;
-                std::string message;
-                int status = receiveFromClient(client_fd, message);                
+                // Client Data Handling
+                int client_fd = _fds[i].fd;       
+                // Prepare a vector to hold multiple potential messages
+                std::vector<std::string> messages;
+                // Pass the vector to receiveFromClient
+                int status = receiveFromClient(client_fd, messages);
                 if (status == -1) {
                     // Client disconnected
+                    NetworkEvent event;
                     event.type = EVENT_CLIENT_DISCONNECT;
                     event.client_fd = client_fd;
                     events.push_back(event);
-                } else if (status == 1) {
-                    // Message received
-                    event.type = EVENT_CLIENT_DATA;
-                    event.client_fd = client_fd;
-                    event.message = message;
-                    events.push_back(event);
+                } 
+                else if (status == 1) {
+                    // Message(s) received
+                    // We loop through ALL messages extracted from the buffer
+                    for (size_t j = 0; j < messages.size(); j++) {
+                        NetworkEvent event;
+                        event.type = EVENT_CLIENT_DATA;
+                        event.client_fd = client_fd;
+                        event.message = messages[j];
+                        events.push_back(event);
+                    }
                 }
             }
         }
