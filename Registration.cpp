@@ -34,10 +34,7 @@ void Server::tryCompleteRegistration(int fd) {
     sendWelcome(fd);
 }
 
-// once registration is complete, server sends a multipart registration message
-// TODO complete this message with MOTD (see left sidebar in https://dd.ircdocs.horse/refs/numerics/372)
-// TODO complete 004 message with the list of channel modes we implement (https://dd.ircdocs.horse/refs/numerics/004)
-// TODO replace placeholder in 003 message with actual server startup time
+// once registration is complete, server sends 001-004 welcome block followed by MOTD
 void Server::sendWelcome(int fd) {
     Client* client = getClient(fd);
     if (!client) {
@@ -47,12 +44,22 @@ void Server::sendWelcome(int fd) {
     const std::string& nick = client->nickname;
     const std::string& user = client->username;
 
+    // format server creation time: strip trailing newline from ctime
+    std::string createdStr = std::ctime(&_createdAt);
+    if (!createdStr.empty() && createdStr[createdStr.size() - 1] == '\n') {
+        createdStr.erase(createdStr.size() - 1);
+    }
+
     // RPL_WELCOME (001)
-    sendToClient(fd, ":server 001 " + nick + " :Welcome to the ft_irc network " + nick + "!" + user + "@localhost");
+    sendToClient(fd, ":" + _serverName + " 001 " + nick + " :Welcome to the ft_irc network " + nick + "!" + user + "@localhost");
     // RPL_YOURHOST (002)
-    sendToClient(fd, ":server 002 " + nick + " :Your host is ircserv, running version 1.0");
+    sendToClient(fd, ":" + _serverName + " 002 " + nick + " :Your host is " + _serverName + ", running version 1.0");
     // RPL_CREATED (003)
-    sendToClient(fd, ":server 003 " + nick + " :This server was created today");
-    // RPL_MYINFO (004)
-    sendToClient(fd, ":server 004 " + nick + " ircserv v1.0 o o");
+    sendToClient(fd, ":" + _serverName + " 003 " + nick + " :This server was created " + createdStr);
+    // RPL_MYINFO (004): <servername> <version> <user modes> <channel modes>
+    // user modes: we don't implement any
+    // channel modes: i t k o l
+    sendToClient(fd, ":" + _serverName + " 004 " + nick + " " + _serverName + " 1.0 o itkol");
+    // MOTD (375/372/376 or 422 if missing)
+    sendMotd(fd);
 }

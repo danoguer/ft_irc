@@ -1,16 +1,57 @@
 #include "Server.hpp"
 
 #include "IrcParser.hpp"
+#include <fstream>
 
 #include "commands/Privmsg.hpp"
 #include "commands/Pass.hpp"
 #include "commands/Nick.hpp"
 #include "commands/User.hpp"
+#include "commands/Join.hpp"
+#include "commands/Part.hpp"
+#include "commands/Mode.hpp"
+#include "commands/Invite.hpp"
+#include "commands/Kick.hpp"
+#include "commands/Topic.hpp"
 
-Server::Server(int port, const std::string& password) : _network(port), _password(password) {
+// Pre-registration commands (allowed before NICK+USER handshake completes)
+const std::string Server::_preRegCommands[] = { "PASS", "NICK", "USER" };
+const size_t Server::_preRegCount = sizeof(Server::_preRegCommands) / sizeof(Server::_preRegCommands[0]);
+
+// Post-registration commands (require completed registration)
+const std::string Server::_postRegCommands[] = { "PRIVMSG", "JOIN", "PART", "MODE", "INVITE", "KICK", "TOPIC", "MOTD" };
+const size_t Server::_postRegCount = sizeof(Server::_postRegCommands) / sizeof(Server::_postRegCommands[0]);
+
+bool Server::isKnownCommand(const std::string& command) const {
+    for (size_t i = 0; i < _preRegCount; ++i) {
+        if (_preRegCommands[i] == command)
+            return true;
+    }
+    for (size_t i = 0; i < _postRegCount; ++i) {
+        if (_postRegCommands[i] == command)
+            return true;
+    }
+    return false;
+}
+
+bool Server::requiresRegistration(const std::string& command) const {
+    for (size_t i = 0; i < _postRegCount; ++i) {
+        if (_postRegCommands[i] == command)
+            return true;
+    }
+    return false;
+}
+
+Server::Server(int port, const std::string& password)
+    : _network(port), _password(password), _serverName("ircserv"), _createdAt(std::time(NULL)) {
     // empty password is allowed per standard, but we don't want weak passwords
     if (!password.empty() && password.length() < 8) {
         throw(std::runtime_error("Password must be at least 8 characters long"));
+    }
+    // try to load MOTD from several paths (relative to cwd, then /etc)
+    // missing MOTD is not an error, clients will just get ERR_NOMOTD (422)
+    if (!loadMotd("motd.txt")) {
+        loadMotd("/etc/ircserv/motd.txt");
     }
 }
 
@@ -110,6 +151,10 @@ std::string Server::getNickname(int fd) const {
     return it->second.nickname;
 }
 
+const std::string& Server::getServerName() const {
+    return _serverName;
+}
+
 Client* Server::getClient(int fd) {
     std::map<int, Client>::iterator it = _clients.find(fd);
     if (it == _clients.end()) {
@@ -118,7 +163,72 @@ Client* Server::getClient(int fd) {
     return &(it->second);
 }
 
+Channel* Server::getChannel(const std::string& name) {
+    std::map<std::string, Channel>::iterator it = _channels.find(name);
+    if (it == _channels.end()) {
+        return NULL;
+    }
+    return &(it->second);
+}
+
+Channel& Server::createChannel(const std::string& name) {
+    _channels[name] = Channel();
+    _channels[name].name = name;
+    return _channels[name];
+}
+
+void Server::removeChannel(const std::string& name) {
+    _channels.erase(name);
+}
+
+bool Server::loadMotd(const std::string& path) {
+    std::ifstream file(path.c_str());
+    if (!file.is_open()) {
+        return false;
+    }
+    _motdLines.clear();
+    std::string line;
+    while (std::getline(file, line)) {
+        // strip trailing \r for cross-platform compatibility
+        if (!line.empty() && line[line.size() - 1] == '\r') {
+            line.erase(line.size() - 1);
+        }
+        _motdLines.push_back(line);
+    }
+    return true;
+}
+
+void Server::sendMotd(int fd) {
+    Client* client = getClient(fd);
+    if (!client)
+        return;
+    const std::string& nick = client->nickname;
+
+    if (_motdLines.empty()) {
+        // ERR_NOMOTD (422)
+        sendToClient(fd, ":" + _serverName + " 422 " + nick + " :MOTD File is missing");
+        return;
+    }
+
+    // RPL_MOTDSTART (375)
+    sendToClient(fd, ":" + _serverName + " 375 " + nick + " :- " + _serverName + " Message of the day - ");
+    // RPL_MOTD (372), one per line
+    for (size_t i = 0; i < _motdLines.size(); ++i) {
+        sendToClient(fd, ":" + _serverName + " 372 " + nick + " :- " + _motdLines[i]);
+    }
+    // RPL_ENDOFMOTD (376)
+    sendToClient(fd, ":" + _serverName + " 376 " + nick + " :End of MOTD command");
+}
+
 void Server::executeCommand(int fd, const IrcCommand& cmd) {
+    // Check for unknown commands
+    if (!isKnownCommand(cmd.command)) {
+        Client* client = getClient(fd);
+        std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
+        sendToClient(fd, ":" + _serverName + " 421 " + who + " " + cmd.command + " :Unknown command");
+        return;
+    }
+
     // PASS, NICK, USER are allowed before registration
     if (cmd.command == "PASS") {
         handlePass(*this, fd, cmd);
@@ -137,28 +247,27 @@ void Server::executeCommand(int fd, const IrcCommand& cmd) {
     Client* client = getClient(fd);
     if (!client || !client->registered) {
         std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
-        sendToClient(fd, ":server 451 " + who + " :You have not registered");
+        sendToClient(fd, ":" + _serverName + " 451 " + who + " :You have not registered");
         return;
     }
 
     if (cmd.command == "PRIVMSG") {
         handlePrivmsg(*this, fd, cmd);
-        return;
+    } else if (cmd.command == "JOIN") {
+        handleJoin(*this, fd, cmd);
+    } else if (cmd.command == "PART") {
+        handlePart(*this, fd, cmd);
+    } else if (cmd.command == "MODE") {
+        handleMode(*this, fd, cmd);
+    } else if (cmd.command == "INVITE") {
+        handleInvite(*this, fd, cmd);
+    } else if (cmd.command == "KICK") {
+        handleKick(*this, fd, cmd);
+    } else if (cmd.command == "TOPIC") {
+        handleTopic(*this, fd, cmd);
+    } else if (cmd.command == "MOTD") {
+        sendMotd(fd);
     }
-    
-    // handle unknown commands
-    // NOTE: to be completely standards compliant, this needs to go BEFORE the
-    // registration check (i.e. if we get an unknown command while unregistered
-    // we need to reply 421 not 451)
-    // but to do this we have to know the full list of commands we handle
-    // so, TODO fix this last
-    if (!cmd.command.empty()) {
-        Client* client = getClient(fd);
-        std::string who = (client && !client->nickname.empty()) ? client->nickname : "*";
-        sendToClient(fd, ":server 421 " + who + " " + cmd.command + " :Unknown command");
-        return;
-    }
-
 }
 
 void Server::processCommand(int fd, const std::string& message) {

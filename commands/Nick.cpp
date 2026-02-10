@@ -52,7 +52,7 @@ void handleNick(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_NONICKNAMEGIVEN (431)
     if (cmd.arguments.empty()) {
-        server.sendToClient(fd, ":server 431 " + who + " :No nickname given");
+        server.sendToClient(fd, ":" + server.getServerName() + " 431 " + who + " :No nickname given");
         return;
     }
 
@@ -60,14 +60,14 @@ void handleNick(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_ERRONEUSNICKNAME (432)
     if (!isValidNickname(newNick)) {
-        server.sendToClient(fd, ":server 432 " + who + " " + newNick + " :Erroneous nickname");
+        server.sendToClient(fd, ":" + server.getServerName() + " 432 " + who + " " + newNick + " :Erroneous nickname");
         return;
     }
 
     // ERR_NICKNAMEINUSE (433)
     int existingFd = server.findClientFdByNickname(newNick);
     if (existingFd != -1 && existingFd != fd) {
-        server.sendToClient(fd, ":server 433 " + who + " " + newNick + " :Nickname is already in use");
+        server.sendToClient(fd, ":" + server.getServerName() + " 433 " + who + " " + newNick + " :Nickname is already in use");
         return;
     }
 

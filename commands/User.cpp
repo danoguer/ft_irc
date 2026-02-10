@@ -9,7 +9,7 @@ void handleUser(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_ALREADYREGISTRED (462)
     if (client->registered) {
-        server.sendToClient(fd, ":server 462 " + client->nickname + " :You may only register once");
+        server.sendToClient(fd, ":" + server.getServerName() + " 462 " + client->nickname + " :You may only register once");
         return;
     }
 
@@ -17,12 +17,13 @@ void handleUser(Server& server, int fd, const IrcCommand& cmd) {
     // USER <username> <mode> <unused> <realname>
     if (cmd.arguments.size() < 4) {
         std::string who = client->nickname.empty() ? "*" : client->nickname;
-        server.sendToClient(fd, ":server 461 " + who + " USER :Not enough parameters");
+        server.sendToClient(fd, ":" + server.getServerName() + " 461 " + who + " USER :Not enough parameters");
         return;
     }
 
     client->username = cmd.arguments[0];
-    // arguments[1] is mode (I THINK we can ignore, we don't implement user modes, TODO check)
+    // arguments[1] is a set of user modes
+    // we don't implement user modes, so this is intentionally ignored
     // arguments[2] is unused (typically "*", we accept anything for compatibility)
     client->realname = cmd.arguments[3];
 
