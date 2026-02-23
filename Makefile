@@ -4,7 +4,7 @@ BOT = ircbot
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-SRCS = main.cpp Server.cpp Registration.cpp Network.cpp IrcParser.cpp commands/CommandHandler.cpp commands/Privmsg.cpp commands/Pass.cpp commands/Nick.cpp commands/User.cpp commands/Join.cpp commands/Mode.cpp commands/Invite.cpp commands/Kick.cpp commands/Topic.cpp commands/Part.cpp commands/Motd.cpp
+SRCS = main.cpp Server.cpp Registration.cpp Network.cpp IrcParser.cpp commands/CommandHandler.cpp commands/Privmsg.cpp commands/Pass.cpp commands/Nick.cpp commands/User.cpp commands/Join.cpp commands/Mode.cpp commands/Invite.cpp commands/Kick.cpp commands/Topic.cpp commands/Part.cpp commands/Motd.cpp commands/Cap.cpp commands/Ping.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 BOT_SRCS = bot_main.cpp Bot.cpp

@@ -2,6 +2,7 @@
 #include "commands/CommandHandler.hpp"
 #include "IrcParser.hpp"
 
+#include <algorithm>
 #include <fstream>
 
 Server::Server(int port, const std::string& password)
@@ -225,6 +226,13 @@ void Server::executeCommand(int fd, const IrcCommand& cmd) {
     entry->handler(*this, fd, cmd);
 }
 
+// IRC commands are case-insensitive (RFC 2812 §2.3)
+static std::string toUpper(const std::string& s) {
+    std::string out = s;
+    std::transform(out.begin(), out.end(), out.begin(), ::toupper);
+    return out;
+}
+
 void Server::processCommand(int fd, const std::string& message) {
     IrcCommand cmd;
     // parse command
@@ -233,11 +241,14 @@ void Server::processCommand(int fd, const std::string& message) {
         return;
     }
 
+    // normalize command to uppercase (IRC commands are case-insensitive)
+    cmd.command = toUpper(cmd.command);
+
     // parser debug
-    std::cout << "Processing IRC command from fd " << fd
-              << " | command='" << cmd.command << "'";
+    std::cout << "[" << fd
+              << "] " << cmd.command;
     for (size_t idx = 0; idx < cmd.arguments.size(); ++idx) {
-        std::cout << " arg[" << idx << "]='" << cmd.arguments[idx] << "'";
+        std::cout << " " << cmd.arguments[idx];
     }
     std::cout << std::endl;
 

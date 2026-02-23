@@ -9,7 +9,7 @@ void handlePass(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_ALREADYREGISTRED (462), cannot use PASS after registration
     if (client->registered) {
-        server.sendReply(fd, "462", client->nickname, ":You may not reregister");
+        server.sendReply(fd, "462", client->nickname, ":Unauthorized command (already registered)");
         return;
     }
 

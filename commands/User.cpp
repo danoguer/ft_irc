@@ -9,7 +9,7 @@ void handleUser(Server& server, int fd, const IrcCommand& cmd) {
 
     // ERR_ALREADYREGISTRED (462)
     if (client->registered) {
-        server.sendReply(fd, "462", client->nickname, ":You may only register once");
+        server.sendReply(fd, "462", client->nickname, ":Unauthorized command (already registered)");
         return;
     }
 

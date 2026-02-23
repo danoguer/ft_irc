@@ -51,7 +51,7 @@ void Server::sendWelcome(int fd) {
     }
 
     // RPL_WELCOME (001)
-    sendReply(fd, "001", nick, ":Welcome to the ft_irc network " + nick + "!" + user + "@localhost");
+    sendReply(fd, "001", nick, ":Welcome to the Internet Relay Network " + nick + "!" + user + "@localhost");
     // RPL_YOURHOST (002)
     sendReply(fd, "002", nick, ":Your host is " + _serverName + ", running version 1.0");
     // RPL_CREATED (003)

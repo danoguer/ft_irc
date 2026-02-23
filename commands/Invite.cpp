@@ -55,7 +55,7 @@ void handleInvite(Server& server, int fd, const IrcCommand& cmd) {
     }
 
     // RPL_INVITING (341), send confirmation to the inviter
-    server.sendReply(fd, "341", nick, targetNick + " " + channelName);
+    server.sendReply(fd, "341", nick, channelName + " " + targetNick);
 
     // Notify the invited user
     server.sendToClient(targetFd, ":" + nick + "!" + client->username + "@localhost INVITE " + targetNick + " " + channelName);

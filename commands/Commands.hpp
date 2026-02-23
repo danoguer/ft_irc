@@ -71,4 +71,14 @@ void handleTopic(Server& server, int fd, const IrcCommand& cmd);
 // No arguments required
 void handleMotd(Server& server, int fd, const IrcCommand& cmd);
 
+// CAP: capability negotiation (IRCv3)
+// We don't implement CAP, but we register it as a command that does nothing
+// because otherwise some clients like irssi get ERR_UNKNOWNCOMMAND and disconnect.
+void handleCap(Server& server, int fd, const IrcCommand& cmd);
+
+// PING: client sends PING, server must reply with PONG
+// Expected args: <token>
+// Without this, clients will think the server is dead and disconnect.
+void handlePing(Server& server, int fd, const IrcCommand& cmd);
+
 #endif

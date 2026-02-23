@@ -228,7 +228,7 @@ void handleMode(Server& server, int fd, const IrcCommand& cmd) {
             default: {
                 // ERR_UNKNOWNMODE (472)
                 std::string modeChar(1, c);
-                server.sendReply(fd, "472", nick, modeChar + " :is unknown mode char to me");
+                server.sendReply(fd, "472", nick, modeChar + " :is unknown mode char to me for " + target);
                 break;
             }
         }

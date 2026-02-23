@@ -135,5 +135,5 @@ void handleJoin(Server& server, int fd, const IrcCommand& cmd) {
     std::string names = buildNamesList(server, *channel);
     // '=' means public channel
     server.sendReply(fd, "353", nick, "= " + channelName + " :" + names);
-    server.sendReply(fd, "366", nick, channelName + " :End of /NAMES list");
+    server.sendReply(fd, "366", nick, channelName + " :End of NAMES list");
 }
