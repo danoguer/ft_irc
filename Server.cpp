@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <fstream>
 
+static volatile bool server_shutdown = false;
+
 Server::Server(int port, const std::string& password)
     : _network(port), _password(password), _serverName("ircserv"), _createdAt(std::time(NULL)) {
     // empty password is allowed per standard, but we don't want weak passwords
@@ -31,9 +33,19 @@ Server& Server::operator=(const Server& other) {
 
 Server::~Server() {}
 
+static void signalHandler(int sig) {
+    if (sig == SIGINT || sig == SIGTERM || sig == SIGQUIT)
+        server_shutdown = true;
+}
+
 void Server::run(){
     _network.initNetwork();
-    while (true) {
+    // Set up signal handlers for graceful shutdown
+    signal(SIGINT, signalHandler);   // Ctrl+C
+    signal(SIGTERM, signalHandler);  // kill command default
+    signal(SIGQUIT, signalHandler);  // Ctrl+backslash
+    signal(SIGPIPE, SIG_IGN);        // Ignore broken pipe (handle via send() errors)
+    while (!server_shutdown) {
         // Poll network events and handle them
         std::vector<NetworkEvent> events = _network.getEvents();
         // Handle each event
@@ -54,6 +66,19 @@ void Server::run(){
             }
         }
     }
+    // SIGINT received - clean shutdown
+    std::cout << "\nShutting down server..." << std::endl;
+    // Send quit message to all connected clients and close their FDs
+    std::vector<int> client_fds;
+    for (std::map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it) {
+        client_fds.push_back(it->first);
+    }
+    for (size_t i = 0; i < client_fds.size(); ++i) {
+        sendToClient(client_fds[i], "ERROR :Server shutting down");
+        _network.disconnectClient(client_fds[i]);
+    }
+    _clients.clear();
+    std::cout << "All client connections closed" << std::endl;
 }
 
 void Server::onClientConnect(int fd) {

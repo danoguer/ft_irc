@@ -8,6 +8,7 @@
 #include <stdexcept>      // std::runtime_error
 #include <iostream>       // std::cout
 #include <ctime>          // time_t, time(), ctime()
+#include <csignal>        // signals.
 
 struct IrcCommand;
 class Server;

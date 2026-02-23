@@ -157,6 +157,11 @@ std::vector<NetworkEvent> Network::getEvents() {
     // poll(the fds vector, number of fds, timeout in ms)
     int poll_count = poll(_fds.data(), _fds.size(), -1);
     if (poll_count < 0) {
+        // EINTR means poll was interrupted by a signal (e.g., SIGINT)
+        // Return empty events and let the main loop check shutdown flag
+        if (errno == EINTR) {
+            return events;
+        }
         throw(std::runtime_error("Poll failed"));
     }
     for (size_t i = 0; i < _fds.size(); ++i) {
