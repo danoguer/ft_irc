@@ -4,16 +4,6 @@
 
 #include <sstream>
 
-static std::string senderPrefix(Server& server, int senderFd) {
-    Client* client = server.getClient(senderFd);
-    if (!client || client->nickname.empty()) {
-        std::ostringstream oss;
-        oss << "fd" << senderFd;
-        return oss.str();
-    }
-    return client->nickname + "!" + client->username + "@localhost";
-}
-
 // Shared logic for PRIVMSG and NOTICE.
 // When isNotice is true, error replies are suppressed (RFC 2812 §3.3.2).
 static void handleMessage(Server& server, int senderFd, const IrcCommand& cmd,

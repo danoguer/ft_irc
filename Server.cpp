@@ -1,5 +1,5 @@
 #include "Server.hpp"
-#include "commands/CommandHandler.hpp"
+#include "commands/Commands.hpp"
 #include "IrcParser.hpp"
 
 #include <algorithm>

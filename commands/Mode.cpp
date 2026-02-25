@@ -28,13 +28,6 @@ static std::string currentModeString(const Channel& ch) {
     return modes + params;
 }
 
-static std::string senderPrefix(Server& server, int fd) {
-    Client* client = server.getClient(fd);
-    if (!client)
-        return "*";
-    return client->nickname + "!" + client->username + "@localhost";
-}
-
 void handleMode(Server& server, int fd, const IrcCommand& cmd) {
     Client* client = server.getClient(fd);
     if (!client)

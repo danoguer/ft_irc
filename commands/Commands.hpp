@@ -2,13 +2,21 @@
 #define COMMANDS_HPP
 
 #include "../IrcParser.hpp"
+#include <string>
 
 class Server;
+
+// Initialize the command dispatch table
+void initCommandMap(Server& server);
+
+// Build a ":nick!user@host" prefix string for a client fd
+// Returns "*" if the client is unknown
+std::string senderPrefix(Server& server, int fd);
 
 // All command handlers have the signature:
 //   void handleCMD(Server& server, int fd, const IrcCommand& cmd)
 //
-// They are registered in CommandHandler.cpp and dispatched
+// They are registered in CommandUtils.cpp and dispatched
 // based on the command name.
 
 // PASS: authenticate with server password

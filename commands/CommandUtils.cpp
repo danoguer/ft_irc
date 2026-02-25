@@ -1,5 +1,12 @@
-#include "CommandHandler.hpp"
 #include "Commands.hpp"
+#include "../Server.hpp"
+
+std::string senderPrefix(Server& server, int fd) {
+    Client* client = server.getClient(fd);
+    if (!client)
+        return "*";
+    return client->nickname + "!" + client->username + "@localhost";
+}
 
 void initCommandMap(Server& server) {
     CommandEntry e;
