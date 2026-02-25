@@ -61,7 +61,7 @@ public:
     void sendToClient(int fd, const std::string& message);
     void sendReply(int fd, const std::string& code, const std::string& nick, const std::string& rest);
     void sendToChannel(const std::string& channelName, const std::string& message, int excludeFd);
-
+    void disconnectClient(int fd);
 	int findClientFdByNickname(const std::string& nickname) const;
 	std::string getNickname(int fd) const;
 	const std::string& getServerName() const;

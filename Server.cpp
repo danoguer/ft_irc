@@ -108,6 +108,11 @@ void Server::onClientDisconnect(int fd) {
     }
 }
 
+void Server::disconnectClient(int fd) {
+    onClientDisconnect(fd);
+    _network.disconnectClient(fd);
+}
+
 void Server::sendToChannel(const std::string& channelName, const std::string& message, int excludeFd) {
     if (_channels.find(channelName) == _channels.end()) {
         return;

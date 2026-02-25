@@ -81,4 +81,9 @@ void handleCap(Server& server, int fd, const IrcCommand& cmd);
 // Without this, clients will think the server is dead and disconnect.
 void handlePing(Server& server, int fd, const IrcCommand& cmd);
 
+// QUIT: disconnect from server
+// Expected args: [quit message]
+// Optional quit message sent to all channels user is in
+void handleQuit(Server& server, int fd, const IrcCommand& cmd);
+
 #endif
