@@ -31,6 +31,11 @@ void handleUser(Server& server, int fd, const IrcCommand& cmd);
 // If target begins with #, target is a channel; otherwise it's a nickname
 void handlePrivmsg(Server& server, int senderFd, const IrcCommand& cmd);
 
+// NOTICE: send a notice to a user or channel
+// Same as PRIVMSG but must NOT generate automatic replies (per RFC 2812)
+// Expected args: <target> <text>
+void handleNotice(Server& server, int senderFd, const IrcCommand& cmd);
+
 // JOIN: join a channel (or create it if it doesn't exist)
 // Expected args: <channel> [key]
 // Channel creator becomes operator
