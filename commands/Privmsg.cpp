@@ -4,26 +4,18 @@
 
 #include <sstream>
 
-static std::string senderPrefix(Server& server, int senderFd) {
-    Client* client = server.getClient(senderFd);
-    if (!client || client->nickname.empty()) {
-        std::ostringstream oss;
-        oss << "fd" << senderFd;
-        return oss.str();
-    }
-    return client->nickname + "!" + client->username + "@localhost";
-}
-
-void handlePrivmsg(Server& server, int senderFd, const IrcCommand& cmd) {
-    // PRIVMSG <target> <text>
+// Shared logic for PRIVMSG and NOTICE.
+// When isNotice is true, error replies are suppressed (RFC 2812 §3.3.2).
+static void handleMessage(Server& server, int senderFd, const IrcCommand& cmd,
+                           const std::string& verb, bool isNotice) {
     Client* client = server.getClient(senderFd);
     if (!client)
         return;
     const std::string& nick = client->nickname;
 
-    // handle error when not enough arguments
     if (cmd.arguments.size() < 2) {
-        server.sendReply(senderFd, "461", nick, "PRIVMSG :Not enough parameters");
+        if (!isNotice)
+            server.sendReply(senderFd, "461", nick, verb + " :Not enough parameters");
         return;
     }
 
@@ -31,30 +23,37 @@ void handlePrivmsg(Server& server, int senderFd, const IrcCommand& cmd) {
     const std::string& text = cmd.arguments[1];
 
     std::ostringstream line;
-    line << ":" << senderPrefix(server, senderFd) << " PRIVMSG " << target << " :" << text;
+    line << ":" << senderPrefix(server, senderFd) << " " << verb << " " << target << " :" << text;
 
     if (!target.empty() && target[0] == '#') {
-        // channel message — sender must be a member
         Channel* channel = server.getChannel(target);
         if (!channel) {
-            server.sendReply(senderFd, "403", nick, target + " :No such channel");
+            if (!isNotice)
+                server.sendReply(senderFd, "403", nick, target + " :No such channel");
             return;
         }
         if (channel->members.find(senderFd) == channel->members.end()) {
-            // ERR_CANNOTSENDTOCHAN (404)
-            server.sendReply(senderFd, "404", nick, target + " :Cannot send to channel");
+            if (!isNotice)
+                server.sendReply(senderFd, "404", nick, target + " :Cannot send to channel");
             return;
         }
-        // broadcast to channel (except sender)
         server.sendToChannel(target, line.str(), senderFd);
         return;
     }
 
-    // direct message
     const int targetFd = server.findClientFdByNickname(target);
     if (targetFd < 0) {
-        server.sendReply(senderFd, "401", nick, target + " :No such nick/channel");
+        if (!isNotice)
+            server.sendReply(senderFd, "401", nick, target + " :No such nick/channel");
         return;
     }
     server.sendToClient(targetFd, line.str());
+}
+
+void handlePrivmsg(Server& server, int senderFd, const IrcCommand& cmd) {
+    handleMessage(server, senderFd, cmd, "PRIVMSG", false);
+}
+
+void handleNotice(Server& server, int senderFd, const IrcCommand& cmd) {
+    handleMessage(server, senderFd, cmd, "NOTICE", true);
 }

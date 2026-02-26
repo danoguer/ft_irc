@@ -20,14 +20,6 @@ static bool isValidChannelName(const std::string& name) {
     return true;
 }
 
-static std::string senderPrefix(Server& server, int fd) {
-    Client* client = server.getClient(fd);
-    if (!client) {
-        return "*";
-    }
-    return client->nickname + "!" + client->username + "@localhost";
-}
-
 // Build the RPL_NAMREPLY (353) names list for a channel
 static std::string buildNamesList(Server& server, Channel& channel) {
     std::string names;

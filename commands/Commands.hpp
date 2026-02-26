@@ -2,13 +2,21 @@
 #define COMMANDS_HPP
 
 #include "../IrcParser.hpp"
+#include <string>
 
 class Server;
+
+// Initialize the command dispatch table
+void initCommandMap(Server& server);
+
+// Build a ":nick!user@host" prefix string for a client fd
+// Returns "*" if the client is unknown
+std::string senderPrefix(Server& server, int fd);
 
 // All command handlers have the signature:
 //   void handleCMD(Server& server, int fd, const IrcCommand& cmd)
 //
-// They are registered in CommandHandler.cpp and dispatched
+// They are registered in CommandUtils.cpp and dispatched
 // based on the command name.
 
 // PASS: authenticate with server password
@@ -30,6 +38,11 @@ void handleUser(Server& server, int fd, const IrcCommand& cmd);
 // Expected args: <target> <text>
 // If target begins with #, target is a channel; otherwise it's a nickname
 void handlePrivmsg(Server& server, int senderFd, const IrcCommand& cmd);
+
+// NOTICE: send a notice to a user or channel
+// Same as PRIVMSG but must NOT generate automatic replies (per RFC 2812)
+// Expected args: <target> <text>
+void handleNotice(Server& server, int senderFd, const IrcCommand& cmd);
 
 // JOIN: join a channel (or create it if it doesn't exist)
 // Expected args: <channel> [key]
