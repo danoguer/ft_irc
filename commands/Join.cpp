@@ -112,13 +112,12 @@ void handleJoin(Server& server, int fd, const IrcCommand& cmd) {
     std::string joinMsg = ":" + senderPrefix(server, fd) + " JOIN " + channelName;
     server.sendToChannel(channelName, joinMsg, -1); // -1 = nobody excluded
 
-    // Send topic (or RPL_NOTOPIC) to the joining user
+    // Send topic to the joining user (only if one is set)
+    // Note: We don't send RPL_NOTOPIC (331) when joining a channel with no topic,
+    // as most IRC clients don't expect it and it can cause sync delays
     if (!channel->topic.empty()) {
         // RPL_TOPIC (332)
         server.sendReply(fd, "332", nick, channelName + " :" + channel->topic);
-    } else {
-        // RPL_NOTOPIC (331)
-        server.sendReply(fd, "331", nick, channelName + " :No topic is set");
     }
 
     // When joining a channel, we send these two commands so the IRC client can populate 
