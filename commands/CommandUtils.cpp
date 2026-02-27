@@ -21,6 +21,8 @@ void initCommandMap(Server& server) {
 
     e.handler = &handlePing;    server.addCommand("PING",    e);
 
+    e.handler = &handleQuit;    server.addCommand("QUIT",    e);
+
     // Post-registration commands (require completed registration)
     e.requiresRegistration = true;
     
@@ -33,5 +35,4 @@ void initCommandMap(Server& server) {
     e.handler = &handleKick;    server.addCommand("KICK",    e);
     e.handler = &handleTopic;   server.addCommand("TOPIC",   e);
     e.handler = &handleMotd;    server.addCommand("MOTD",    e);
-    e.handler = &handleQuit;    server.addCommand("QUIT",    e);
 }
