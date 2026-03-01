@@ -1,5 +1,5 @@
 #include "Commands.hpp"
-#include "../Server.hpp"
+#include "../core/Server.hpp"
 
 // check if nickname is valid per RFC 2812
 // nickname = ( letter / special ) *8( letter / digit / special / "-" )

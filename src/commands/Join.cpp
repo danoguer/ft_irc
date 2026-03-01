@@ -1,5 +1,5 @@
 #include "Commands.hpp"
-#include "../Server.hpp"
+#include "../core/Server.hpp"
 
 #include <sstream>
 

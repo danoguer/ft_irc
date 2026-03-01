@@ -1,5 +1,5 @@
 #include "Commands.hpp"
-#include "../Server.hpp"
+#include "../core/Server.hpp"
 
 std::string senderPrefix(Server& server, int fd) {
     Client* client = server.getClient(fd);

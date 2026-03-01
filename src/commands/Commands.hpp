@@ -1,7 +1,7 @@
 #ifndef COMMANDS_HPP
 #define COMMANDS_HPP
 
-#include "../IrcParser.hpp"
+#include "../core/IrcParser.hpp"
 #include <string>
 
 class Server;

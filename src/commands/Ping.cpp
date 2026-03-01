@@ -1,5 +1,5 @@
 #include "Commands.hpp"
-#include "../Server.hpp"
+#include "../core/Server.hpp"
 
 // PING <token>: server replies with PONG <servername> :<token>
 // Without this, clients disconnect.

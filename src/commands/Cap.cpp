@@ -1,5 +1,5 @@
 #include "Commands.hpp"
-#include "../Server.hpp"
+#include "../core/Server.hpp"
 
 // CAP (IRCv3 capability negotiation) — not implemented.
 // We silently ignore the command so clients like irssi that send

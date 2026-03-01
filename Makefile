@@ -2,12 +2,32 @@ NAME = ircserv
 BOT = ircbot
 
 CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -Isrc
 
-SRCS = main.cpp Server.cpp Registration.cpp Network.cpp IrcParser.cpp commands/CommandUtils.cpp commands/Privmsg.cpp commands/Pass.cpp commands/Nick.cpp commands/User.cpp commands/Join.cpp commands/Mode.cpp commands/Invite.cpp commands/Kick.cpp commands/Topic.cpp commands/Part.cpp commands/Motd.cpp commands/Cap.cpp commands/Ping.cpp commands/Quit.cpp
+SRCS = src/main.cpp \
+       src/core/Server.cpp \
+       src/core/Registration.cpp \
+       src/core/Network.cpp \
+       src/core/IrcParser.cpp \
+       src/commands/CommandUtils.cpp \
+       src/commands/Privmsg.cpp \
+       src/commands/Pass.cpp \
+       src/commands/Nick.cpp \
+       src/commands/User.cpp \
+       src/commands/Join.cpp \
+       src/commands/Mode.cpp \
+       src/commands/Invite.cpp \
+       src/commands/Kick.cpp \
+       src/commands/Topic.cpp \
+       src/commands/Part.cpp \
+       src/commands/Motd.cpp \
+       src/commands/Cap.cpp \
+       src/commands/Ping.cpp \
+       src/commands/Quit.cpp
+
 OBJS = $(SRCS:.cpp=.o)
 
-BOT_SRCS = bot_main.cpp Bot.cpp
+BOT_SRCS = src/bonus/Bot.cpp
 BOT_OBJS = $(BOT_SRCS:.cpp=.o)
 
 all: $(NAME) # $(BOT)

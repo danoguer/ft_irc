@@ -1,5 +1,5 @@
 #include "Commands.hpp"
-#include "../Server.hpp"
+#include "../core/Server.hpp"
 
 void handleKick(Server& server, int fd, const IrcCommand& cmd) {
     Client* client = server.getClient(fd);

@@ -1,5 +1,5 @@
 #include "Server.hpp"
-#include "commands/Commands.hpp"
+#include "../commands/Commands.hpp"
 #include "IrcParser.hpp"
 
 #include <algorithm>
@@ -17,7 +17,7 @@ Server::Server(int port, const std::string& password)
     initCommandMap(*this);
     // try to load MOTD from several paths (relative to cwd, then /etc)
     // missing MOTD is not an error, clients will just get ERR_NOMOTD (422)
-    if (!loadMotd("motd.txt")) {
+    if (!loadMotd("config/motd.txt")) {
         loadMotd("/etc/ircserv/motd.txt");
     }
 }
