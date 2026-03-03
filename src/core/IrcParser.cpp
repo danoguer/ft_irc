@@ -1,9 +1,9 @@
 #include "IrcParser.hpp"
-#include <cctype> // std::isspace
+
 
 static void skipSpaces(const std::string& s, size_t& i) {
     const size_t n = s.size();
-    while (i < n && std::isspace(static_cast<unsigned char>(s[i]))) {
+    while (i < n && s[i] == ' ') {
         ++i;
     }
 }
@@ -15,7 +15,7 @@ static bool readToken(const std::string& s, size_t& i, std::string& out) {
         return false;
     }
     size_t start = i;
-    while (i < n && !std::isspace(static_cast<unsigned char>(s[i]))) {
+    while (i < n && s[i] != ' ') {
         ++i;
     }
     if (start == i) {
