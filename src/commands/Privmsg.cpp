@@ -5,7 +5,7 @@
 #include <sstream>
 
 // Shared logic for PRIVMSG and NOTICE.
-// When isNotice is true, error replies are suppressed (RFC 2812 §3.3.2).
+// The only difference is that, for notices, server replies are not sent
 static void handleMessage(Server& server, int senderFd, const IrcCommand& cmd,
                            const std::string& verb, bool isNotice) {
     Client* client = server.getClient(senderFd);

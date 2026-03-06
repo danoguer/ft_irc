@@ -19,7 +19,8 @@ void handleInvite(Server& server, int fd, const IrcCommand& cmd) {
     // Look up the channel
     Channel* channel = server.getChannel(channelName);
 
-    // If the channel exists, only members may invite
+    // According to the RFC, it's possible to invite users to a nonexistent channel
+    // However, if the channel exists, only members may invite
     if (channel) {
         // ERR_NOTONCHANNEL (442), inviter not in channel
         if (channel->members.find(fd) == channel->members.end()) {
@@ -35,7 +36,7 @@ void handleInvite(Server& server, int fd, const IrcCommand& cmd) {
         }
     }
 
-    // ERR_NOSUCHNICK (401)
+    // ERR_NOSUCHNICK (401), target does not exist
     int targetFd = server.findClientFdByNickname(targetNick);
     if (targetFd < 0) {
         server.sendReply(fd, "401", nick, targetNick + " :No such nick/channel");

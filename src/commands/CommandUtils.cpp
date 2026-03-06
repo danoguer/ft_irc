@@ -18,9 +18,7 @@ void initCommandMap(Server& server) {
     e.handler = &handlePass;    server.addCommand("PASS",    e);
     e.handler = &handleNick;    server.addCommand("NICK",    e);
     e.handler = &handleUser;    server.addCommand("USER",    e);
-
     e.handler = &handlePing;    server.addCommand("PING",    e);
-
     e.handler = &handleQuit;    server.addCommand("QUIT",    e);
 
     // Post-registration commands (require completed registration)

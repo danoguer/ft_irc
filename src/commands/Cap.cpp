@@ -1,10 +1,12 @@
 #include "Commands.hpp"
 #include "../core/Server.hpp"
 
-// CAP (IRCv3 capability negotiation) — not implemented.
-// We silently ignore the command so clients like irssi that send
-// CAP LS before NICK/USER will fall back to legacy registration
-// instead of disconnecting on ERR_UNKNOWNCOMMAND.
+// CAP (IRCv3 capability negotiation). 
+// We don't support any IRCv3 capabilities.
+// According to the standard, we should not implement this command.
+// However, if the command isn't implemented we'd return ERR_UNKNOWNCOMMAND,
+// and some clients (like irssi) disconnect if we do this.
+// For compatibility, we implement and silently ignore the CAP command.
 void handleCap(Server& server, int fd, const IrcCommand& cmd) {
     (void)server;
     (void)fd;

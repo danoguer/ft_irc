@@ -25,12 +25,17 @@ SRCS = src/main.cpp \
        src/commands/Ping.cpp \
        src/commands/Quit.cpp
 
-OBJS = $(SRCS:.cpp=.o)
-
+OBJDIR = obj
+OBJS = $(SRCS:src/%.cpp=$(OBJDIR)/%.o)
 BOT_SRCS = src/bonus/Bot.cpp
-BOT_OBJS = $(BOT_SRCS:.cpp=.o)
+BOT_OBJS = $(BOT_SRCS:src/bonus/%.cpp=$(OBJDIR)/bonus/%.o)
 
-all: $(NAME) # $(BOT)
+all: $(OBJDIR) $(NAME)
+
+bonus: $(OBJDIR) $(BOT)
+
+$(OBJDIR):
+	mkdir -p $(OBJDIR)/commands $(OBJDIR)/core $(OBJDIR)/bonus
 
 $(NAME): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
@@ -38,11 +43,20 @@ $(NAME): $(OBJS)
 $(BOT): $(BOT_OBJS)
 	$(CXX) $(CXXFLAGS) $(BOT_OBJS) -o $(BOT)
 
-%.o: %.cpp
+$(OBJDIR)/%.o: src/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJDIR)/core/%.o: src/core/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJDIR)/commands/%.o: src/commands/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJDIR)/bonus/%.o: src/bonus/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(BOT_OBJS)
+	rm -rf $(OBJDIR)
 
 fclean: clean
 	rm -f $(NAME) $(BOT)

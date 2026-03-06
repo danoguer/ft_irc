@@ -22,13 +22,13 @@ void handleTopic(Server& server, int fd, const IrcCommand& cmd) {
         return;
     }
 
-    // ERR_NOTONCHANNEL (442) — must be on the channel
+    // ERR_NOTONCHANNEL (442)
     if (channel->members.find(fd) == channel->members.end()) {
         server.sendReply(fd, "442", nick, channelName + " :You're not on that channel");
         return;
     }
 
-    // ── Query topic (no second argument) ──
+    // If there's a single argument, we want to recover the topic instead of setting it
     if (cmd.arguments.size() < 2) {
         if (channel->topic.empty()) {
             // RPL_NOTOPIC (331)
