@@ -46,26 +46,4 @@ Server needs to keep track of:
 Note on user auth: handled server-wide (actually network wide), not for each channel. 
 
 Difference between authenticated and registered:
-authentication (like SASL or NickServ IDENTIFY) proves you are logged in with your account, while registration links a unique, permanent nickname to that account, preventing others from using it and giving you identity and privileges on the network. The difference is that registration creates the unique identity (your nick), and authentication proves you own it when you connect; without registering, anyone can use your desired name, leading to redirection or restrictions
-
-# STRUCTURES:
-
-## Network - executor interop:
-
-message:    # this class is for messages in both directions
-    int client_id
-    str message
-
-kill_signal:
-    int client_id
-
-
-## Server internals
-
-message:
-    int client_id
-    str prefix
-    str command
-    str payload
-
-server state required:
+Authentication (like SASL or NickServ IDENTIFY) proves you are logged in with your account, while registration links a unique, permanent nickname to that account, preventing others from using it and giving you identity and privileges on the network. The difference is that registration creates the unique identity (your nick), and authentication proves you own it when you connect; without registering, anyone can use your desired name, leading to redirection or restrictions
