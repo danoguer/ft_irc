@@ -101,12 +101,13 @@ USER myusername 0 * :My Real Name
 #### Using the Bonus Bot
 
 ```bash
-./ircbot <server> <port> <password> <nickname>
+# Channel is optional
+./ircbot <server> <port> <password> <channel>
 ```
 
 **Example:**
 ```bash
-./ircbot localhost 6667 mySecretPassword WeatherBot
+./ircbot localhost 6667 mySecretPassword general
 ```
 
 ### Testing
@@ -180,6 +181,20 @@ MODE #channel +k mypassword
 
 # Remove channel password
 MODE #channel -k
+```
+### Bot Commands
+```irc
+# Bot responds with a greeting message
+!hello
+
+# Shows the list of available commands
+!help
+
+# Returns the current server time
+!time
+
+# Gets weather information for a city (uses wttr.in API via curl)
+!weather <city>
 ```
 
 ## Project Architecture
@@ -273,5 +288,3 @@ AI assistance was used for the following tasks in this project:
 - AI did not write production code directly but helped with understanding concepts and troubleshooting
 
 ---
-
-**Note**: This server is designed for educational purposes as part of the 42 curriculum. While functional, it may not include all features of production IRC servers.

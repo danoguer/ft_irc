@@ -27,7 +27,7 @@ SRCS = src/main.cpp \
 
 OBJDIR = obj
 OBJS = $(SRCS:src/%.cpp=$(OBJDIR)/%.o)
-BOT_SRCS = src/bonus/Bot.cpp
+BOT_SRCS = src/bonus/Bot.cpp src/bonus/main.cpp
 BOT_OBJS = $(BOT_SRCS:src/bonus/%.cpp=$(OBJDIR)/bonus/%.o)
 
 all: $(OBJDIR) $(NAME)

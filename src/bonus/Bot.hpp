@@ -12,16 +12,23 @@
 #include <cerrno>         // errno, EINPROGRESS, EWOULDBLOCK, EAGAIN
 #include <ctime>          // time(), ctime()
 #include <cstdio>         // popen(), pclose(), fgets()
+#include <map>            // std::map
+
+struct WeatherCache {
+    std::string data;
+    time_t timestamp;
+};
 
 class Bot {
 public:
-    Bot(const std::string& server, int port, const std::string& password, const std::string& nickname);
+    Bot(const std::string& server, int port, const std::string& password, const std::string& nickname, const std::string& channel);
     Bot(const Bot& other);
     Bot& operator=(const Bot& other);
     ~Bot();
     void connectToServer(const std::string& server, int port);
     void authenticate();
-    void run();
+    void joinChannel();
+    void run(volatile bool* running);
     void receiveMessage();
     void sendMessage(const std::string& message);
     void handleMessage(const std::string& message);
@@ -33,7 +40,9 @@ private:
     int _port;
     std::string _password;
     std::string _nickname;
+    std::string _channel;
     std::string _buffer;
+    std::map<std::string, WeatherCache> _weatherCache;
 };
 
 #endif
