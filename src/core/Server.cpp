@@ -96,11 +96,28 @@ void Server::onClientConnect(int fd) {
 void Server::onClientDisconnect(int fd) {
     // Clean up client data structure
     if (_clients.find(fd) != _clients.end()) {
-        // Remove client from all channels
-        std::set<std::string>& client_channels = _clients[fd].channels;
-        for (std::set<std::string>::iterator it = client_channels.begin(); it != client_channels.end(); ++it) {
+        Client& client = _clients[fd];
+
+        // Broadcast a QUIT message to all channels the client was in
+        if (!client.nickname.empty()) {
+            std::string quitMsg = ":" + client.nickname + "!" + client.username + "@localhost QUIT :Connection closed";
+            for (std::set<std::string>::iterator it = client.channels.begin(); it != client.channels.end(); ++it) {
+                sendToChannel(*it, quitMsg, fd);
+            }
+        }
+
+        // Remove client from all channels, and clean up operator/invited sets
+        std::set<std::string> channelsCopy = client.channels;
+        for (std::set<std::string>::iterator it = channelsCopy.begin(); it != channelsCopy.end(); ++it) {
             if (_channels.find(*it) != _channels.end()) {
-                _channels[*it].members.erase(fd);
+                Channel& ch = _channels[*it];
+                ch.members.erase(fd);
+                ch.operators.erase(fd);
+                ch.invited.erase(fd);
+                // Remove empty channels
+                if (ch.members.empty()) {
+                    _channels.erase(*it);
+                }
             }
         }
         // Remove client from clients map
@@ -273,15 +290,6 @@ void Server::processCommand(int fd, const std::string& message) {
 
     // normalize command to uppercase (IRC commands are case-insensitive)
     cmd.command = toUpper(cmd.command);
-
-    // parser debug
-    std::cout << "[" << fd
-              << "] " << cmd.command;
-    for (size_t idx = 0; idx < cmd.arguments.size(); ++idx) {
-        std::cout << " " << cmd.arguments[idx];
-    }
-    std::cout << std::endl;
-
     // execute command
     executeCommand(fd, cmd);
 }
