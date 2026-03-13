@@ -110,17 +110,6 @@ USER myusername 0 * :My Real Name
 ./ircbot localhost 6667 mySecretPassword general
 ```
 
-### Testing
-
-The project includes test scripts:
-
-```bash
-# Bash-based netcat tests
-./tests/nc_tests.sh
-
-# Python test suite
-python3 tests/tests.py
-```
 
 ## Usage Examples
 
