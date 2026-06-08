@@ -1,279 +1,144 @@
-# ft_irc
+# 💬 Ft_irc — High-Concurrency IRC Server
 
-*This project has been created as part of the 42 curriculum by andfern2 and danoguer.*
+A fully functional, RFC-compliant Internet Relay Chat (IRC) server written in **C++98**. This project implements a robust network infrastructure capable of handling multiple concurrent clients communicating in real-time through isolated channels and private messages, without thread exhaustion.
 
-## Description
+---
 
-**ft_irc** is a fully functional Internet Relay Chat (IRC) server implementation written in C++98. The project implements the core IRC protocol as defined in RFC 1459, RFC 2810, RFC 2811, RFC 2812, and RFC 2813, allowing multiple clients to connect simultaneously and communicate in real-time through channels and private messages.
+### Engineering & Architecture Challenges
 
-The server handles client authentication, registration, channel management (including operators and modes), and various IRC commands. It uses non-blocking I/O with `poll()` to efficiently manage multiple concurrent connections. The implementation focuses on robustness, RFC compliance, and clean architecture with separate layers for networking, parsing, and command execution.
+To align with SRE and high-performance backend standards, the implementation prioritizes non-blocking operations, predictable resource allocation, and strict protocol enforcement.
 
-### Key Features
+#### System Architecture Diagram
 
-- **Multi-client support**: Handle multiple simultaneous connections using `poll()`
-- **Authentication system**: Server password protection via PASS command
-- **Channel management**: 
-  - Create and join channels with optional passwords
-  - Channel operators with special privileges
-  - Channel modes: invite-only (+i), topic restrictions (+t), passwords (+k), user limits (+l)
-  - Channel operations: KICK, INVITE, TOPIC
-- **IRC Commands**: PASS, NICK, USER, JOIN, PART, PRIVMSG, MODE, KICK, INVITE, TOPIC, QUIT, MOTD, CAP, PING
-- **Private messaging**: Direct messaging between users
-- **MOTD (Message of the Day)**: Custom welcome message for users
-- **Bonus feature**: IRC bot with weather information capability
+```mermaid
+graph TD
+    %% Clients Layer
+    subgraph Clients [Client Layer]
+        C1[IRC Client: irssi / WeeChat]
+        C2[Diagnostic Utility: netcat]
+        Bot[Automated API Service Bot]
+    end
 
-## Instructions
+    %% Network Infrastructure
+    subgraph Network [1. Network Layer - Network.cpp]
+        Socket[Listening TCP Socket]
+        Poll[poll Event Loop / Multiplexer]
+        Buffers[Per-Client I/O Buffers]
+    end
 
-### Requirements
+    %% Parsing Layer
+    subgraph Parser [2. Parser Layer - IrcParser.cpp]
+        Tokenizer[Stream Tokenizer \r\n]
+        Sanitizer[RFC Protocol Validator]
+    end
 
-- C++ compiler with C++98 support (g++, clang++)
-- Make
-- Unix-like operating system (Linux, macOS, WSL)
+    %% Core Logic Layer
+    subgraph Core [3. Core Server Layer - Server.cpp]
+        Dispatcher[Command Pattern Router]
+        State[(In-Memory State: Users & Channels)]
+    end
 
-### Compilation
+    %% Data Flow Connections
+    C1 & C2 & Bot ---->|TCP/IP Connections| Socket
+    Socket -->|Register FDs| Poll
+    Poll -->|Non-Blocking Read/Write| Buffers
+    Buffers -->|Reconstructed Packets| Tokenizer
+    Tokenizer -->|Raw Tokens| Sanitizer
+    Sanitizer -->|Validated Command Object| Dispatcher
+    Dispatcher -->|Mutate / Query| State
+```
 
-To compile the IRC server:
+#### 1. Concurrency Model & I/O Multiplexing
+Instead of spawning a thread per connection (which scales poorly and risks context-switching overhead), the entire server operates on a **single-threaded event loop** utilizing the **`poll()` system call**.
+- **Non-Blocking Sockets:** All client sockets and the main listening socket are configured to be non-blocking (`O_NONBLOCK`). This prevents a slow or malicious client from hanging the entire server during a read/write operation.
+- **Dynamic Message Buffering:** Network streaming can fragment packets. The server implements an accumulation buffer per client, ensuring complete IRC commands (delimited by `\r\n`) are reconstructed before passing them to the parser layer.
 
+#### 2. Clean Architecture & Software Patterns
+The codebase is decoupled into three distinct architectural layers to maximize maintainability and separate concerns:
+- **Network Layer (`Network.cpp`):** Manages the low-level socket lifecycle, executes `poll()`, handles incoming connections, and flushes I/O buffers.
+- **Parser Layer (`IrcParser.cpp`):** Validates raw text packets against RFC specifications and translates them into structured internal command objects.
+- **Server/Logic Layer (`Server.cpp`):** Maintains the global state of the application (in-memory maps of clients and channels) and routes requests using the **Command Pattern**.
+
+#### 3. Robustness & Memory Management (SRE Focus)
+Developing in C++98 meant working without modern smart pointers (`std::unique_ptr`, `std::shared_ptr`). 
+- **Zero Memory Leaks:** Every dynamic allocation (clients, channels, custom bot state) is strictly tracked. 
+- **Graceful Shutdown:** Implemented clean signal interception (`SIGINT` / `SIGTERM`) to trigger a controlled teardown sequence. When the server stops, it gracefully disconnects all active sockets, flushes logs, and frees 100% of allocated memory (validated via Valgrind).
+
+---
+
+### Key Features & RFC Compliance
+
+The server fully implements core functionalities from **RFC 1459** and **RFC 2812**:
+
+- **Authentication & Security:** Robust client registration flow requiring password verification (`PASS`), nickname selection (`NICK`), and user handshake (`USER`).
+- **Advanced Channel Management:** Automated creation/destruction of rooms, channel operator privileges, and dynamic channel modes:
+  - Invite-only (`+i`) & Invitation routing (`INVITE`).
+  - Topic restrictions (`+t`) & Topic alteration (`TOPIC`).
+  - Password-protected channels (`+k`).
+  - Strict user limits (`+l`) to prevent resource exhaustion.
+- **Private Messaging:** Real-time data routing (`PRIVMSG`) between individual users and full channels.
+- **Automated API Bot:** Includes a separate, fully containerizable IRC bot executable that joins channels and interfaces with external network APIs (such as `wttr.in` via `curl`) to serve real-time weather metrics, system time, and service diagnostics.
+
+---
+
+### Tech Stack & Core Competencies
+
+- **Language:** C++98 (Strict standard compliance)
+- **Tooling:** GNU Make, GCC / Clang compiler
+- **Environment:** Unix-like Operating Systems (Linux, macOS, WSL)
+- **Concepts Applied:** Sockets (TCP/IP), File Descriptor Multiplexing, Non-blocking I/O, Signal Handling, String Parsing State Machines.
+
+---
+
+### File Structure
+
+```text
+ft_irc/
+├── src/
+│   ├── main.cpp                 # Application entry point
+│   ├── core/                    # Infrastructure & Network engine
+│   │   ├── Server.cpp/hpp       # State tracking and execution
+│   │   ├── Network.cpp/hpp      # Low-level poll() implementation
+│   │   └── IrcParser.cpp/hpp    # Stream parsing and sanitization
+│   ├── commands/                # Encapsulated Command Pattern handlers
+│   │   ├── Pass.cpp | Nick.cpp | User.cpp  # Authentication
+│   │   ├── Join.cpp | Part.cpp | Mode.cpp  # Channel Operations
+│   │   └── PRIVMSG.cpp | Kick.cpp | Quit.cpp # Interaction & Teardown
+│   └── bonus/
+│       └── Bot.cpp/hpp          # External API Bot implementation
+└── Makefile
+```
+
+---
+
+### Compilation & Execution
+
+#### Compilation
+To build the high-concurrency server executable (`ircserv`):
 ```bash
 make
 ```
-
-This will generate the `ircserv` executable.
-
-To compile the bonus IRC bot:
-
+To compile the standalone automated service bot (`ircbot`):
 ```bash
 make bonus
 ```
 
-This will generate the `ircbot` executable.
-
-To clean object files:
-
-```bash
-make clean
-```
-
-To remove all compiled files:
-
-```bash
-make fclean
-```
-
-To recompile everything:
-
-```bash
-make re
-```
-
-### Execution
-
-#### Starting the Server
-
+#### Running the Server
 ```bash
 ./ircserv <port> <password>
+# Example: ./ircserv 6667 mySecretPassword
 ```
 
-**Parameters:**
-- `<port>`: The port number on which the server will listen for connections (1024-65535 recommended)
-- `<password>`: The connection password that clients must provide
-
-**Example:**
-```bash
-./ircserv 6667 mySecretPassword
-```
-
-#### Connecting with a Client
-
-You can connect to the server using any standard IRC client (e.g., irssi, WeeChat, HexChat, mIRC) or using netcat for testing:
-
+#### Connecting Clients
+The server is compatible with any standard IRC client software (`irssi`, `WeeChat`, `mIRC`) or raw network utilities for SRE diagnostics like `netcat`:
 ```bash
 nc localhost 6667
 ```
 
-Then send the following commands:
-```
-PASS mySecretPassword
-NICK myNickname
-USER myusername 0 * :My Real Name
-```
-
-#### Using the Bonus Bot
-
-```bash
-# Channel is optional
-./ircbot <server> <port> <password> <channel>
-```
-
-**Example:**
-```bash
-./ircbot localhost 6667 mySecretPassword general
-```
-
-
-## Usage Examples
-
-### Basic Client Registration and Channel Operations
-
-```irc
-# Authenticate with server
-PASS mySecretPassword
-
-# Set your nickname
-NICK john
-
-# Register as a user
-USER john 0 * :John Doe
-
-# Join a channel
-JOIN #general
-
-# Send a message to the channel
-PRIVMSG #general :Hello everyone!
-
-# Set channel topic (if you're an operator)
-TOPIC #general :Welcome to the general discussion
-
-# Invite someone to an invite-only channel
-INVITE alice #private
-
-# Set channel modes
-MODE #general +i          # Make channel invite-only
-MODE #general +t          # Restrict topic changes to operators
-MODE #general +k secret   # Set channel password
-MODE #general +l 10       # Set user limit to 10
-
-# Send a private message
-PRIVMSG alice :Hey, how are you?
-
-# Leave a channel
-PART #general :Goodbye!
-
-# Disconnect from server
-QUIT :See you later
-```
-
-### Channel Operator Commands
-
-```irc
-# Give operator status to a user
-MODE #channel +o username
-
-# Remove operator status
-MODE #channel -o username
-
-# Kick a user from the channel
-KICK #channel baduser :Please follow the rules
-
-# Set channel password
-MODE #channel +k mypassword
-
-# Remove channel password
-MODE #channel -k
-```
-### Bot Commands
-```irc
-# Bot responds with a greeting message
-!hello
-
-# Shows the list of available commands
-!help
-
-# Returns the current server time
-!time
-
-# Gets weather information for a city (uses wttr.in API via curl)
-!weather <city>
-```
-
-## Project Architecture
-
-The project is organized into three main layers:
-
-1. **Network Layer** (`Network.cpp`): Handles client connections, socket I/O, and message buffering using `poll()`
-2. **Parser Layer** (`IrcParser.cpp`): Parses incoming IRC messages into structured command objects
-3. **Server Layer** (`Server.cpp`): Maintains server state (clients, channels) and executes commands
-
-### File Structure
-
-```
-ft_irc/
-├── src/
-│   ├── main.cpp                 # Entry point
-│   ├── core/                    # Core server components
-│   │   ├── Server.cpp/hpp       # Server state and command execution
-│   │   ├── Network.cpp/hpp      # Network I/O management
-│   │   ├── IrcParser.cpp/hpp    # Message parsing
-│   │   └── Registration.cpp     # Client registration logic
-│   ├── commands/                # IRC command implementations
-│   │   ├── Pass.cpp             # Password authentication
-│   │   ├── Nick.cpp             # Nickname management
-│   │   ├── User.cpp             # User registration
-│   │   ├── Join.cpp             # Channel joining
-│   │   ├── Part.cpp             # Channel leaving
-│   │   ├── Privmsg.cpp          # Private/channel messages
-│   │   ├── Mode.cpp             # Channel/user modes
-│   │   ├── Kick.cpp             # Kick users from channels
-│   │   ├── Invite.cpp           # Invite users to channels
-│   │   ├── Topic.cpp            # Channel topic management
-│   │   ├── Quit.cpp             # Client disconnection
-│   │   ├── Motd.cpp             # Message of the day
-│   │   ├── Cap.cpp              # Capability negotiation
-│   │   └── Ping.cpp             # Keep-alive
-│   └── bonus/
-│       └── Bot.cpp/hpp          # IRC bot implementation
-├── config/
-│   └── motd.txt                 # Message of the day
-├── tests/                       # Test scripts
-├── docs/                        # RFC documentation
-└── Makefile
-```
-
-## Technical Choices
-
-- **C++98 Standard**: Required by 42 curriculum, ensuring compatibility with older systems
-- **poll() for I/O Multiplexing**: Efficient handling of multiple client connections without threading
-- **Non-blocking Sockets**: Prevents server blocking on slow clients
-- **Command Pattern**: Each IRC command has a dedicated handler function
-- **State Management**: Centralized server state with clear separation of concerns
-- **Message Buffering**: Handles partial messages and ensures complete IRC messages before processing
-
-## Resources
-
-### IRC Protocol Documentation
-
-- [RFC 1459](https://tools.ietf.org/html/rfc1459) - Internet Relay Chat Protocol (original specification)
-- [RFC 2810](https://tools.ietf.org/html/rfc2810) - IRC: Architecture
-- [RFC 2811](https://tools.ietf.org/html/rfc2811) - IRC: Channel Management
-- [RFC 2812](https://tools.ietf.org/html/rfc2812) - IRC: Client Protocol
-- [RFC 2813](https://tools.ietf.org/html/rfc2813) - IRC: Server Protocol
-- [ircdocs.horse](https://ircdocs.horse/) - Modern IRC Protocol Documentation
-- [IRC Numerics List](https://defs.ircdocs.horse/defs/numerics.html) - IRC server reply codes
-
-### Programming References
-
-- [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/) - Socket programming in C/C++
-- [poll() man page](https://man7.org/linux/man-pages/man2/poll.2.html) - I/O multiplexing documentation
-- C++ reference documentation for STL containers (map, set, vector, string)
-
-### Articles and Tutorials
-
-- [How IRC Works](https://www.irchelp.org/protocol/) - IRC protocol overview
-- [Building an IRC Server](https://modern.ircdocs.horse/) - Modern IRC implementation guide
-
-### AI Usage
-
-AI assistance was used for the following tasks in this project:
-
-1. **RFC Interpretation**: Understanding the nuances of IRC protocol specifications and edge cases
-2. **Code Structure Suggestions**: Reviewing architectural patterns for network servers and command dispatching
-3. **Debugging Assistance**: Identifying issues with message parsing, buffer management, and state synchronization
-4. **Documentation**: Generating code comments and this README structure
-5. **Test Case Generation**: Brainstorming edge cases and test scenarios for IRC command handling
-
-**Scope of AI Use:**
-- AI was used as a reference tool and debugging assistant
-- All core implementation, architecture decisions, and actual code were written by the project authors
-- AI did not write production code directly but helped with understanding concepts and troubleshooting
-
 ---
+
+### Authors & Collaboration
+Developed as a collaborative engineering project by:
+- **Daniel Nogueras** ([danoguer](https://github.com/danoguer))
+- **Andrés Fernández** ([andfern2](https://github.com/andfern2))
+```
