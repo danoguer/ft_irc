@@ -11,24 +11,51 @@ services:
       - IRC_PASSWORD=${IRC_PASSWORD}
     command: ["./ircserv", "${IRC_PORT}", "${IRC_PASSWORD}"]
     restart: unless-stopped
-
-    # 🩺 Monitorización activa del socket TCP del servidor
+    ulimits:
+      nofile:
+        soft: 5000
+        hard: 5000
+    networks:
+      irc_network:
+        ipv4_address: 172.20.0.2
     healthcheck:
-      test: ["CMD", "sh", "-c", "nc -z localhost ${IRC_PORT}"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "nc", "-z", "127.0.0.1", "${IRC_PORT}"]
+      interval: 5s
+      timeout: 3s
       retries: 3
       start_period: 5s
 
-  # 🛰️ Cliente automatizado para la prueba de humo (Smoke Test)
+  irc-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ft_irc_bot
+    environment:
+      - IRC_PORT=${IRC_PORT}
+      - IRC_PASSWORD=${IRC_PASSWORD}
+    command: ["./ircbot", "172.20.0.2", "${IRC_PORT}", "${IRC_PASSWORD}", "SRE_WeatherBot"]
+    restart: unless-stopped
+    networks:
+      - irc_network
+    depends_on:
+      irc-server:
+        condition: service_healthy
+
   irc-client:
     image: debian:bookworm-slim
     container_name: ft_irc_client
-    # -w 2 le dice a nc: "Cierra la conexión si pasan 2 segundos sin actividad"
-    # Esto evita que el contenedor se quede congelado infinitamente en el log.
     command: >
       sh -c "apt-get update && apt-get install -y netcat-openbsd && sleep 3 && 
-      printf 'NICK botdevops\nUSER bot 0 * :bot\nCAP LS\n' | nc -w 2 irc-server ${IRC_PORT}"
+      printf 'NICK botdevops\nUSER bot 0 * :bot\nCAP LS\n' | nc -w 2 172.20.0.2 ${IRC_PORT}"
+    networks:
+      - irc_network
     depends_on:
       irc-server:
         condition: service_started
+
+networks:
+  irc_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
