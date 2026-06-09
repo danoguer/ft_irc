@@ -1,28 +1,35 @@
-# 💬 Ft_irc — High-Concurrency IRC Server
+# 💬 IRC-Server
 
-A fully functional, RFC-compliant Internet Relay Chat (IRC) server written in **C++98**. This project implements a robust network infrastructure capable of handling multiple concurrent clients communicating in real-time through isolated channels and private messages, without thread exhaustion.
+A functional Internet Relay Chat (IRC) server written in **C++98**. Developed as part of the 42 school curriculum, this project implements a network infrastructure designed to handle concurrent client communication in real time using a single-threaded architecture, without thread exhaustion or resource leaks.
 
 ---
 
-### Engineering & Architecture Challenges
+### Engineering & Architectural Constraints
 
-To align with SRE and high-performance backend standards, the implementation prioritizes non-blocking operations, predictable resource allocation, and strict protocol enforcement.
+The implementation prioritizes non-blocking operations, predictable resource allocation, and strict protocol enforcement under low-level standard constraints.
 
-#### System Architecture Diagram
+#### ⚠️ Academic Constraints & C++98 Context
+This project strictly enforces the **C++98 standard**. The primary objective is to demonstrate manual memory management, low-level socket programming, and systems-level architecture without relying on modern language features (`std::unique_ptr`, `std::shared_ptr`, or C++11 memory models). Every data structure, reference, and pointer allocation is manually tracked and audited.
+
+#### System Architecture & Infrastructure Diagram
 
 ```mermaid
 graph TD
     %% Clients Layer
     subgraph Clients [Client Layer & Test Automation]
         C1[IRC Client: irssi / WeeChat]
-        C2[Diagnostic Utility: netcat]
-        Bot[Automated API Service Bot]
+        GoTest[Go Stress Tester: 5000 Goroutines]
         ST[Docker Smoke Test: nc -w 2]
+    end
+
+    %% Isolated Microservices
+    subgraph Microservices [Standalone Microservices]
+        Bot[Automated Weather Bot Container]
     end
 
     %% Network Infrastructure
     subgraph Network [1. Network & Infra Layer - Network.cpp]
-        Socket[Listening TCP Socket]
+        Socket[Listening TCP Socket: 172.20.0.2]
         Poll[poll Event Loop / Multiplexer]
         Buffers[Per-Client I/O Buffers]
         HC{Healthcheck: nc -z}
@@ -41,8 +48,9 @@ graph TD
     end
 
     %% Data Flow Connections
-    C1 & C2 & Bot & ST ---->|TCP/IP Connections| Socket
-    HC -.->|Black-box Monitoring 10s| Socket
+    C1 & GoTest & ST ---->|TCP/IP Connections| Socket
+    Bot ---->|Static IP Routing| Socket
+    HC -.->|Active Probing 5s| Socket
     Socket -->|Register FDs| Poll
     Poll -->|Non-Blocking Read/Write| Buffers
     Buffers -->|Reconstructed Packets| Tokenizer
@@ -52,92 +60,90 @@ graph TD
 ```
 
 #### 1. Concurrency Model & I/O Multiplexing
-Instead of spawning a thread per connection (which scales poorly and risks context-switching overhead), the entire server operates on a **single-threaded event loop** utilizing the **`poll()` system call**.
-- **Non-Blocking Sockets:** All client sockets and the main listening socket are configured to be non-blocking (`O_NONBLOCK`). This prevents a slow or malicious client from hanging the entire server during a read/write operation.
-- **Dynamic Message Buffering:** Network streaming can fragment packets. The server implements an accumulation buffer per client, ensuring complete IRC commands (delimited by `\n`) are reconstructed before passing them to the parser layer.
+To avoid the thread-context switching overhead and scale limitations of a thread-per-connection model, the entire server runs on a **single-threaded event loop** using the **`poll()` system call**.
+- **Non-Blocking Sockets:** All client sockets and the master listening socket are explicitly set to non-blocking mode (`O_NONBLOCK`). This guarantees that a slow or stalled client cannot block the execution loop during I/O operations.
+- **Dynamic Message Buffering:** Network streaming can fragment TCP packets. The server associates an independent read/write buffer with each client, ensuring complete IRC commands (delimited by `\n` or `\r\n`) are fully reconstructed before passing them to the parser layer.
 
-#### 2. Clean Architecture & Software Patterns
-The codebase is decoupled into three distinct architectural layers to maximize maintainability and separate concerns:
-- **Network Layer (`Network.cpp`):** Manages the low-level socket lifecycle, executes `poll()`, handles incoming connections, and flushes I/O buffers.
-- **Parser Layer (`IrcParser.cpp`):** Validates raw text packets against RFC specifications and translates them into structured internal command objects.
-- **Server/Logic Layer (`Server.cpp`):** Maintains the global state of the application (in-memory maps of clients and channels) and routes requests using the **Command Pattern**.
+#### 2. Load Benchmarking & Resource Limits
+The architecture was audited using a custom benchmarking utility written in **Go** to measure behavior up to the operating system boundaries:
 
-#### 3. Robustness & Memory Management (SRE Focus)
-Developing in C++98 meant working without modern smart pointers (`std::unique_ptr`, `std::shared_ptr`). 
-- **Zero Memory Leaks:** Every dynamic allocation (clients, channels, custom bot state) is strictly tracked. 
-- **Graceful Shutdown:** Implemented clean signal interception (`SIGINT` / `SIGTERM`) to trigger a controlled teardown sequence. When the server stops, it gracefully disconnects all active sockets, flushes logs, and frees 100% of allocated memory (validated via Valgrind).
+* **Simulated Workload:** 5,000 concurrent Goroutines executing rapid TCP connections and command bursts.
+* **Measured Capacity:** **4,090 active simultaneous connections with 0.00% packet loss.**
+* **Tolerant Failure Handling:** Upon reaching the physical ceiling of **4,096 open File Descriptors** (enforced via container `ulimits`), the server gracefully rejected subsequent attachments (910 dropped) via `accept()` while maintaining the stability and data streams of the 4,090 already connected active clients.
 
-#### 4. Containerization & Test Automation (DevOps Engine)
-The production-ready deployment is fully orchestrated using **Docker** and **Docker Compose**, ensuring isolation and environmental consistency:
-- **Multi-Stage Builds:** The application compiles inside an isolated builder stage and runs within a minimal `debian:bookworm-slim` image, reducing overall container size and security vulnerability surfaces.
-- **Black-Box Health Monitoring:** Built-in active `healthcheck` that pings the server's TCP socket every 10 seconds via `nc -z` to ensure system responsiveness.
-- **Automated Integration Testing:** Includes a dedicated ephemeral smoke-test client service (`irc-client`) that automatically verifies connection handshakes, ensures POSIX shell stream parsing compatibility, and safely self-terminates via timeout flags (`nc -w 2`) with an `exit code 0`.
+#### 3. Software Patterns & Architecture
+The codebase is structured into three decoupled layers:
+- **Network Layer (`Network.cpp`):** Handles socket lifecycles, runs the `poll()` multiplexing loop, accepts connections, and manages raw byte I/O buffers.
+- **Parser Layer (`IrcParser.cpp`):** Tokenizes raw text streams and validates incoming syntax against RFC specifications, generating internal command structures.
+- **Server/Logic Layer (`Server.cpp`):** Manages global state (in-memory maps tracking users and channels) and executes actions using the **Command Pattern**.
+- **Memory Lifetime:** Clean signal interception (`SIGINT` / `SIGTERM`) invokes a controlled teardown sequence, disconnecting sockets and releasing 100% of dynamically allocated memory (verified via Valgrind).
 
----
-
-### Key Features & RFC Compliance
-
-The server fully implements core functionalities from **RFC 1459** and **RFC 2812**:
-
-- **Authentication & Security:** Robust client registration flow requiring password verification (`PASS`), nickname selection (`NICK`), and user handshake (`USER`).
-- **Advanced Channel Management:** Automated creation/destruction of rooms, channel operator privileges, and dynamic channel modes:
-  - Invite-only (`+i`) & Invitation routing (`INVITE`).
-  - Topic restrictions (`+t`) & Topic alteration (`TOPIC`).
-  - Password-protected channels (`+k`).
-  - Strict user limits (`+l`) to prevent resource exhaustion.
-- **Private Messaging:** Real-time data routing (`PRIVMSG`) between individual users and full channels.
-- **Automated API Bot:** Includes a separate, fully containerizable IRC bot executable that joins channels and interfaces with external network APIs (such as `wttr.in` via `curl`) to serve real-time weather metrics, system time, and service diagnostics.
+#### 4. Containerization & Isolation
+The deployment is orchestrated using **Docker** and **Docker Compose** to guarantee environment consistency:
+- **Multi-Stage Builds:** The build stage compiles the binaries inside an isolated compiler environment. The final runtime layer copies only the compiled executables into a minimal `debian:bookworm-slim` image, reducing attack surfaces.
+- **Least Privilege Security:** Containers drop root privileges immediately after setup, executing the runtime processes under a unprivileged user (`USER ircuser`).
+- **Static Networking:** Configures a dedicated virtual bridge network (`172.20.0.0/16`) with static IP anchoring (`172.20.0.2` for the server) to satisfy low-level C network function address conversion (`inet_addr`).
+- **Health Probing:** Integrates a native container `healthcheck` that probes the TCP port every 5 seconds using `nc -z`. The bot service container deployment is gated via `condition: service_healthy`, preventing race conditions during startup.
 
 ---
 
-### Tech Stack & Core Competencies
+### Protocol Implementation & Key Features
 
-- **Language:** C++98 (Strict standard compliance)
-- **Containerization & Orchestration:** Docker, Docker Compose
-- **Scripting & Tooling:** POSIX Shell Scripting, GNU Make, GCC / Clang
-- **Environment:** Unix-like Operating Systems (Linux, WSL, macOS)
-- **Concepts Applied:** Sockets (TCP/IP), File Descriptor Multiplexing (`poll`), Non-blocking I/O, Black-box Monitoring, Environment Decoupling, Smoke Testing.
+The server implements core features from **RFC 1459** and **RFC 2812**:
+
+- **Authentication:** Client registration pipeline processing password verification (`PASS`), nickname assignment (`NICK`), and user handshake (`USER`).
+- **Channel Operations:** Dynamic creation and destruction of rooms, channel operator tracking, and standard channel modes (`+i` invite-only, `+t` topic restrictions, `+k` channel key, `+l` user limits).
+- **Data Routing:** Direct private messaging and channel-wide broadcasting using the `PRIVMSG` command.
+
+#### Standalone Automated Bot
+Includes a separate client executable that operates in an independent container, attaches via the internal bridge network, and processes data requests (such as `wttr.in` text-based weather lookups) for active channels.
 
 ---
 
-### Compilation & Execution
+### Tech Stack & Competencies
 
-For detailed environment setup, variable configuration (`.env`), and deep troubleshooting, check out our comprehensive [Docs: Usage & Infrastructure Guide](./docs/Usage.md).
+- **Core System:** C++98 (Strict standard enforcement)
+- **Tooling & Orchestration:** Docker, Docker Compose, GNU Make, GCC / Clang
+- **Testing Utilities:** Go (Golang) concurrency stress testing tools, Netcat (`nc`)
+- **Key Competencies:** TCP/IP Socket Programming, File Descriptor Multiplexing (`poll`), Non-blocking I/O, Private Container Networking, System Resource Tuning (`ulimits`), Health Monitoring.
 
-#### Option A: Containerized Deployment (Recommended)
-1. Create a `.env` file in the root directory:
+---
+
+### Execution & Deployment
+
+For deep-dive configuration details and environment variables, refer to the [Docs: Usage & Infrastructure Guide](./docs/Usage.md).
+
+#### Option A: Docker Compose Deployment (Recommended)
+1. Configure the `.env` file in the root directory:
    ```env
    IRC_PORT=6667
    IRC_PASSWORD=mySecretPassword
    ```
-2. Build and launch the cluster with one command:
+2. Build and start the containers:
    ```bash
-   docker compose up
+   docker compose up --build
    ```
-3. Destroy the network and containers when finished:
+3. Stop and remove containers and networks:
    ```bash
-   docker compose down
+   docker compose down --volumes
    ```
 
 #### Option B: Local Compilation
-To build the high-concurrency server executable (`ircserv`):
+Build the server binary (`ircserv`):
 ```bash
 make
 ```
-To compile the standalone automated service bot (`ircbot`):
+Build the bot binary (`ircbot`):
 ```bash
 make bonus
 ```
-Run the server locally:
+Execute the server:
 ```bash
 ./ircserv <port> <password>
-# Example: ./ircserv 6667 mySecretPassword
 ```
 
 ---
 
-### Authors & Collaboration
-Developed as a collaborative engineering project by:
+### Authors
 - **Daniel Nogueras** ([danoguer](https://github.com/danoguer))
 - **Andrés Fernández** ([andfern2](https://github.com/andfern2))
-  
