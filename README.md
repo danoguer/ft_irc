@@ -102,7 +102,7 @@ The server fully implements core functionalities from **RFC 1459** and **RFC 281
 
 ### Compilation & Execution
 
-For detailed environment setup, variable configuration (`.env`), and deep troubleshooting, check out our comprehensive [Docs: Usage & Infrastructure Guide](./docs/USAGE.md).
+For detailed environment setup, variable configuration (`.env`), and deep troubleshooting, check out our comprehensive [Docs: Usage & Infrastructure Guide](./docs/Usage.md).
 
 #### Option A: Containerized Deployment (Recommended)
 1. Create a `.env` file in the root directory:
@@ -140,4 +140,4 @@ Run the server locally:
 Developed as a collaborative engineering project by:
 - **Daniel Nogueras** ([danoguer](https://github.com/danoguer))
 - **Andrés Fernández** ([andfern2](https://github.com/andfern2))
-```
+  
