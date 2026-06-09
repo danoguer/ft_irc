@@ -13,22 +13,24 @@ To align with SRE and high-performance backend standards, the implementation pri
 ```mermaid
 graph TD
     %% Clients Layer
-    subgraph Clients [Client Layer]
+    subgraph Clients [Client Layer & Test Automation]
         C1[IRC Client: irssi / WeeChat]
         C2[Diagnostic Utility: netcat]
         Bot[Automated API Service Bot]
+        ST[Docker Smoke Test: nc -w 2]
     end
 
     %% Network Infrastructure
-    subgraph Network [1. Network Layer - Network.cpp]
+    subgraph Network [1. Network & Infra Layer - Network.cpp]
         Socket[Listening TCP Socket]
         Poll[poll Event Loop / Multiplexer]
         Buffers[Per-Client I/O Buffers]
+        HC{Healthcheck: nc -z}
     end
 
     %% Parsing Layer
     subgraph Parser [2. Parser Layer - IrcParser.cpp]
-        Tokenizer[Stream Tokenizer \r\n]
+        Tokenizer[Stream Tokenizer \n]
         Sanitizer[RFC Protocol Validator]
     end
 
@@ -39,7 +41,8 @@ graph TD
     end
 
     %% Data Flow Connections
-    C1 & C2 & Bot ---->|TCP/IP Connections| Socket
+    C1 & C2 & Bot & ST ---->|TCP/IP Connections| Socket
+    HC -.->|Black-box Monitoring 10s| Socket
     Socket -->|Register FDs| Poll
     Poll -->|Non-Blocking Read/Write| Buffers
     Buffers -->|Reconstructed Packets| Tokenizer
@@ -51,7 +54,7 @@ graph TD
 #### 1. Concurrency Model & I/O Multiplexing
 Instead of spawning a thread per connection (which scales poorly and risks context-switching overhead), the entire server operates on a **single-threaded event loop** utilizing the **`poll()` system call**.
 - **Non-Blocking Sockets:** All client sockets and the main listening socket are configured to be non-blocking (`O_NONBLOCK`). This prevents a slow or malicious client from hanging the entire server during a read/write operation.
-- **Dynamic Message Buffering:** Network streaming can fragment packets. The server implements an accumulation buffer per client, ensuring complete IRC commands (delimited by `\r\n`) are reconstructed before passing them to the parser layer.
+- **Dynamic Message Buffering:** Network streaming can fragment packets. The server implements an accumulation buffer per client, ensuring complete IRC commands (delimited by `\n`) are reconstructed before passing them to the parser layer.
 
 #### 2. Clean Architecture & Software Patterns
 The codebase is decoupled into three distinct architectural layers to maximize maintainability and separate concerns:
@@ -63,6 +66,12 @@ The codebase is decoupled into three distinct architectural layers to maximize m
 Developing in C++98 meant working without modern smart pointers (`std::unique_ptr`, `std::shared_ptr`). 
 - **Zero Memory Leaks:** Every dynamic allocation (clients, channels, custom bot state) is strictly tracked. 
 - **Graceful Shutdown:** Implemented clean signal interception (`SIGINT` / `SIGTERM`) to trigger a controlled teardown sequence. When the server stops, it gracefully disconnects all active sockets, flushes logs, and frees 100% of allocated memory (validated via Valgrind).
+
+#### 4. Containerization & Test Automation (DevOps Engine)
+The production-ready deployment is fully orchestrated using **Docker** and **Docker Compose**, ensuring isolation and environmental consistency:
+- **Multi-Stage Builds:** The application compiles inside an isolated builder stage and runs within a minimal `debian:bookworm-slim` image, reducing overall container size and security vulnerability surfaces.
+- **Black-Box Health Monitoring:** Built-in active `healthcheck` that pings the server's TCP socket every 10 seconds via `nc -z` to ensure system responsiveness.
+- **Automated Integration Testing:** Includes a dedicated ephemeral smoke-test client service (`irc-client`) that automatically verifies connection handshakes, ensures POSIX shell stream parsing compatibility, and safely self-terminates via timeout flags (`nc -w 2`) with an `exit code 0`.
 
 ---
 
@@ -84,36 +93,33 @@ The server fully implements core functionalities from **RFC 1459** and **RFC 281
 ### Tech Stack & Core Competencies
 
 - **Language:** C++98 (Strict standard compliance)
-- **Tooling:** GNU Make, GCC / Clang compiler
-- **Environment:** Unix-like Operating Systems (Linux, macOS, WSL)
-- **Concepts Applied:** Sockets (TCP/IP), File Descriptor Multiplexing, Non-blocking I/O, Signal Handling, String Parsing State Machines.
-
----
-
-### File Structure
-
-```text
-ft_irc/
-├── src/
-│   ├── main.cpp                 # Application entry point
-│   ├── core/                    # Infrastructure & Network engine
-│   │   ├── Server.cpp/hpp       # State tracking and execution
-│   │   ├── Network.cpp/hpp      # Low-level poll() implementation
-│   │   └── IrcParser.cpp/hpp    # Stream parsing and sanitization
-│   ├── commands/                # Encapsulated Command Pattern handlers
-│   │   ├── Pass.cpp | Nick.cpp | User.cpp  # Authentication
-│   │   ├── Join.cpp | Part.cpp | Mode.cpp  # Channel Operations
-│   │   └── PRIVMSG.cpp | Kick.cpp | Quit.cpp # Interaction & Teardown
-│   └── bonus/
-│       └── Bot.cpp/hpp          # External API Bot implementation
-└── Makefile
-```
+- **Containerization & Orchestration:** Docker, Docker Compose
+- **Scripting & Tooling:** POSIX Shell Scripting, GNU Make, GCC / Clang
+- **Environment:** Unix-like Operating Systems (Linux, WSL, macOS)
+- **Concepts Applied:** Sockets (TCP/IP), File Descriptor Multiplexing (`poll`), Non-blocking I/O, Black-box Monitoring, Environment Decoupling, Smoke Testing.
 
 ---
 
 ### Compilation & Execution
 
-#### Compilation
+For detailed environment setup, variable configuration (`.env`), and deep troubleshooting, check out our comprehensive [Docs: Usage & Infrastructure Guide](./docs/USAGE.md).
+
+#### Option A: Containerized Deployment (Recommended)
+1. Create a `.env` file in the root directory:
+   ```env
+   IRC_PORT=6667
+   IRC_PASSWORD=mySecretPassword
+   ```
+2. Build and launch the cluster with one command:
+   ```bash
+   docker compose up
+   ```
+3. Destroy the network and containers when finished:
+   ```bash
+   docker compose down
+   ```
+
+#### Option B: Local Compilation
 To build the high-concurrency server executable (`ircserv`):
 ```bash
 make
@@ -122,17 +128,10 @@ To compile the standalone automated service bot (`ircbot`):
 ```bash
 make bonus
 ```
-
-#### Running the Server
+Run the server locally:
 ```bash
 ./ircserv <port> <password>
 # Example: ./ircserv 6667 mySecretPassword
-```
-
-#### Connecting Clients
-The server is compatible with any standard IRC client software (`irssi`, `WeeChat`, `mIRC`) or raw network utilities for SRE diagnostics like `netcat`:
-```bash
-nc localhost 6667
 ```
 
 ---
